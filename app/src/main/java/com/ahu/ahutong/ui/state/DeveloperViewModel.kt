@@ -1,7 +1,8 @@
 package com.ahu.ahutong.ui.state
 
 import android.content.Context
-import android.widget.Toast
+import com.ahu.ahutong.data.SchoolConfig
+import com.ahu.ahutong.utils.openUrlSafely
 import androidx.lifecycle.ViewModel
 
 /**
@@ -26,11 +27,7 @@ class DeveloperViewModel : ViewModel() {
             get() = ""
         override val onclick: (Context) -> Unit
             get() = { context ->
-                Toast.makeText(
-                    context,
-                    "团队成员信息待补充，欢迎通过项目仓库 Issue 反馈",
-                    Toast.LENGTH_SHORT
-                ).show()
+                openUrlSafely(context, SchoolConfig.PROJECT_REPOSITORY_URL)
             }
     }
 
@@ -39,7 +36,7 @@ class DeveloperViewModel : ViewModel() {
         override val img: String = ""
         override val onclick: (Context) -> Unit
             get() = { context ->
-                Toast.makeText(context, "欢迎通过项目仓库 Issue 联系我们", Toast.LENGTH_SHORT).show()
+                openUrlSafely(context, SchoolConfig.PROJECT_REPOSITORY_URL)
             }
     }
 

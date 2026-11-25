@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Feedback
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ahu.ahutong.R
+import com.ahu.ahutong.data.SchoolConfig
+import com.ahu.ahutong.ui.components.SettingsActionRow
+import com.ahu.ahutong.utils.openUrlSafely
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.DeveloperViewModel
 import com.kyant.capsule.ContinuousCapsule
@@ -127,6 +133,35 @@ fun Contributors(
                     }
                 }
             }
+        }
+        // 开源仓库入口：意见反馈、参与贡献统一跳到 Gitee 仓库
+        Text(
+            text = "开源仓库",
+            modifier = Modifier.padding(horizontal = 24.dp),
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleMedium
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(SmoothRoundedCornerShape(32.dp))
+                .background(100.n1 withNight 20.n1),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            SettingsActionRow(
+                title = "项目仓库（Gitee）",
+                subtitle = "查看源码、提交 Issue 或 Pull Request",
+                leadingIcon = Icons.Outlined.Code,
+                showDivider = true,
+                onClick = { openUrlSafely(context, SchoolConfig.PROJECT_REPOSITORY_URL) }
+            )
+            SettingsActionRow(
+                title = "问题反馈（Issue）",
+                subtitle = "报告问题、提出建议",
+                leadingIcon = Icons.Outlined.Feedback,
+                showDivider = false,
+                onClick = { openUrlSafely(context, SchoolConfig.PROJECT_ISSUES_URL) }
+            )
         }
     }
 }

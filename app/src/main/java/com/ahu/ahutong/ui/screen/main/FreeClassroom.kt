@@ -116,6 +116,31 @@ fun FreeClassroom(
             style = MaterialTheme.typography.headlineMedium
         )
 
+        // 服务公告：学校暂未开放空闲教室接口
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(SmoothRoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.secondaryContainer)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "📢 服务公告",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Text(
+                text = "学校暂未开放空闲教室查询服务。待服务开放后，我们会第一时间通过技术手段接入，届时即可在这里查询空教室，敬请期待。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         presetCandidates.firstOrNull()?.let { candidate ->
             LaunchedEffect(candidate.opportunityId, candidate.presetId) {
                 freeClassroomViewModel.onPresetCandidateVisible(candidate)

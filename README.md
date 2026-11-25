@@ -20,6 +20,7 @@
 - 软件源码与「学习资料」放在同一个 Gitee 仓库：[edge-of-the-abyss/ChinaCivil-Affairs-University-using](https://gitee.com/edge-of-the-abyss/ChinaCivil-Affairs-University-using)。
 - 学习资料按学院放在 `学习资料/<学院名>/`，把 PDF / Word / PPT / Excel / TXT / Markdown 放进去后提交，App 即可读取。
 - 新增资料后建议运行 `powershell -ExecutionPolicy Bypass -File tools/generate_materials_snapshot.ps1`，重新生成 App 内置的目录快照（Gitee 接口被限流时兜底用）。
+- App 内「意见反馈」「贡献名单」及成员条目会直接打开本仓库或 Issue 页面。
 - 构建产物（`dist/`、`build/`、APK 等）已在 `.gitignore` 中排除，不随源码提交。
 - 原工程的可选子模块（`sdk/`、`GuiXu-Rust/`）未随源码提交，缺少它们不影响 `:app:assembleDebug` 构建；如需原生相关能力请按下文说明自行补齐。
 

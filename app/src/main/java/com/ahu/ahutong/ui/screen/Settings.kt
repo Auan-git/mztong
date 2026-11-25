@@ -51,9 +51,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.AHUApplication
 import com.ahu.ahutong.R
+import com.ahu.ahutong.data.SchoolConfig
+import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.dao.PreferencesManager
-import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.server.AhuTong
 import com.ahu.ahutong.notification.CourseReminderScheduler
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
@@ -69,6 +70,7 @@ import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.AboutViewModel
 import com.ahu.ahutong.ui.state.MainViewModel
+import com.ahu.ahutong.utils.openUrlSafely
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.launch
 
@@ -222,13 +224,7 @@ fun Settings(
             SettingsActionRow(
                 title = stringResource(id = R.string.mine_tv_feedback),
                 leadingIcon = Icons.Outlined.Feedback,
-                onClick = {
-                    Toast.makeText(
-                        context,
-                        "反馈渠道待接入，欢迎通过项目仓库的 Issue 反馈问题",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+                onClick = { openUrlSafely(context, SchoolConfig.PROJECT_ISSUES_URL) }
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.update_intro),
