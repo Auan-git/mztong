@@ -2,6 +2,11 @@ package com.ahu.ahutong
 
 object Constants {
     const val UPDATE_LOG = """
+        民职通 1.6.1（修复 release 版课表无法加载）
+
+        1. 修复 release 包混淆后超星教务接口的 JSON 模型字段被重命名/裁剪，导致课表、成绩、校历解析失败的问题。
+        2. ProGuard 增加超星教务数据模型保留规则，release 与 debug 行为一致。
+
         民职通 1.6.0（校历重做 + 课表合并）
 
         1. 校历页改为直接读取教务校历接口并本地渲染：显示每周边界日期、当前周高亮，不再依赖远程图片。

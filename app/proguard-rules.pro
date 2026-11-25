@@ -179,3 +179,7 @@
 # Evaluation
 -keep class com.ahu.ahutong.data.EvaluationRepository { *; }
 -keep interface com.ahu.ahutong.data.crawler.api.jwxt.EvaluationApi { *; }
+
+# 超星教务接口的 Gson 数据模型（课表/成绩/校历）：release 混淆会重命名或裁剪字段，
+# 导致 JSON 解析失败、课表页面提示连接失败，因此整包保留。
+-keep class com.ahu.ahutong.data.chaoxing.** { *; }
