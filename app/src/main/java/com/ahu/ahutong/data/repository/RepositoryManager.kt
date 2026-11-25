@@ -445,6 +445,7 @@ object RepositoryManager {
         val progressCounter = AtomicInteger(0)
         // 六个学院都在同一个仓库里：按仓库分组，树只拉一次，再按学院前缀切分。
         val groupedSources = repositorySources.groupBy { Triple(it.owner, it.repo, it.branch) }
+        val snapshotTree = loadMaterialsTreeSnapshot()
         val repositoryCaches: List<Result<Pair<RepositorySource, RepositoryIndexCache>>> = supervisorScope {
             groupedSources.values.map { sources ->
                 async {
@@ -464,6 +465,11 @@ object RepositoryManager {
                                 tree = treeSha
                             ).tree
                         }.getOrThrow()
+                    }.recoverCatching {
+                        // Gitee 匿名 API 有频率限制（403 Rate Limit），此时用 App 内置快照兜底，
+                        // 文件本身仍可通过 raw 直链下载，不影响浏览已收录的资料。
+                        snapshotTree.takeIf { it.isNotEmpty() }
+                            ?: throw IllegalStateException("无法获取资料目录")
                     }
                     sources.map { source ->
                         treeResult.mapCatching { tree ->
@@ -977,6 +983,32 @@ object RepositoryManager {
 
     private fun normalizeRepositoryPath(path: String): String {
         return path.replace('\\', '/').trim('/')
+    }
+
+    private data class MaterialsTreeSnapshot(
+        val generatedAt: String? = null,
+        val branch: String? = null,
+        val entries: List<GiteeTreeItem> = emptyList()
+    )
+
+    /**
+     * 读取 App 内置的学习资料目录快照（assets/materials_tree_snapshot.json）。
+     *
+     * 快照由 tools/generate_materials_snapshot.ps1 生成，只用于 Gitee API 被限流或断网时兜底。
+     */
+    private fun loadMaterialsTreeSnapshot(): List<GiteeTreeItem> {
+        return runCatching {
+            val json = AHUApplication.getApp().assets
+                .open("materials_tree_snapshot.json")
+                .bufferedReader(Charsets.UTF_8)
+                .use { it.readText() }
+            val type = object : TypeToken<MaterialsTreeSnapshot>() {}.type
+            val snapshot = gson.fromJson<MaterialsTreeSnapshot>(json, type)
+            snapshot?.entries.orEmpty().mapNotNull { item ->
+                val path = item.path.trim('/')
+                if (path.isEmpty()) null else GiteeTreeItem(path = path, type = item.type, size = item.size)
+            }
+        }.getOrDefault(emptyList())
     }
 
     private fun encodePath(path: String): String {

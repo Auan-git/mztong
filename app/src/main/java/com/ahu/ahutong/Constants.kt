@@ -2,6 +2,11 @@ package com.ahu.ahutong
 
 object Constants {
     const val UPDATE_LOG = """
+        民职通 1.5.2（学习资料限流兜底）
+
+        1. Gitee 匿名接口有频率限制，限流（403）时学习资料改用 App 内置目录快照展示，不再整页空白。
+        2. 内置快照由 tools/generate_materials_snapshot.ps1 生成，随每次发版更新；文件仍通过 raw 直链下载。
+
         民职通 1.5.1（学习资料改为仓库内目录）
 
         1. 软件源码与学习资料合并到同一个 Gitee 仓库：edge-of-the-abyss/ChinaCivil-Affairs-University-using。
