@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+    <title>校园地图</title>
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #e8eef5; }
+        #map { width: 100%; height: 100%; }
+        .amap-logo, .amap-copyright { opacity: .7; }
+    </style>
+    <script>
+        window._AMapSecurityConfig = { securityJsCode: '380f27e4262d748391a5808903b0563b' };
+    </script>
+</head>
+<body>
+<div id="map"></div>
+<script>
+    function bridge(message) {
+        try {
+            if (window.AndroidBridge && AndroidBridge.onJsMessage) AndroidBridge.onJsMessage(String(message));
+        } catch (e) { /* ignore */ }
+    }
+    window.onerror = function (msg) { bridge('地图脚本错误: ' + msg); };
+    var map = null;
+    var campusMarker = null;
+    var userMarker = null;
+    var userCircle = null;
+    var geocoder = null;
+    var currentCampus = null;
+    var campusRequest = 0;
+    var mapReady = false;
+
+    function ensureMap() {
+        if (map) return true;
+        if (typeof AMap === 'undefined') { bridge('地图脚本加载失败，请检查网络'); return false; }
+        var el = document.getElementById('map');
+        // WebView 必须先完成布局，零高度容器无法加载地图图块。
+        if (!el.clientWidth || !el.clientHeight) return false;
+        try {
+            map = new AMap.Map('map', {
+                zoom: 16,
+                center: [116.349, 39.7545],
+                viewMode: '2D',
+                resizeEnable: true
+            });
+            map.on('complete', function () {
+                if (mapReady) return;
+                mapReady = true;
+                bridge('ready');
+            });
+            bridge('initialized');
+            AMap.plugin(['AMap.Geocoder'], function () {
+                try { geocoder = new AMap.Geocoder({ city: '全国' }); } catch (e) { geocoder = null; }
+                if (currentCampus) setCampus(currentCampus.name, currentCampus.address, currentCampus.lng, currentCampus.lat, currentCampus.geocodeAddress);
+            });
+            return true;
+        } catch (e) {
+            bridge('地图初始化失败: ' + e.message);
+            return false;
+        }
+    }
+
+    function placeCampus(lng, lat, name) {
+        if (!map) return;
+        if (campusMarker) { map.remove(campusMarker); campusMarker = null; }
+        var pos = [parseFloat(lng), parseFloat(lat)];
+        campusMarker = new AMap.Marker({
+            position: pos,
+            title: name || '校区',
+            label: { content: name || '校区', direction: 'top' }
+        });
+        map.add(campusMarker);
+        map.setZoomAndCenter(16, pos);
+    }
+
+    function setCampus(name, address, fallbackLng, fallbackLat, geocodeAddress) {
+        currentCampus = { name: name, address: address, lng: fallbackLng, lat: fallbackLat, geocodeAddress: geocodeAddress !== false };
+        var request = ++campusRequest;
+        if (!ensureMap()) return;
+        placeCampus(fallbackLng, fallbackLat, name);
+        // 已核验校园 POI 的坐标不再交给地址解析，避免被道路中心点覆盖。
+        if (!currentCampus.geocodeAddress) {
+            bridge('已定位 ' + name);
+            return;
+        }
+        if (geocoder) {
+            geocoder.getLocation(address, function (status, result) {
+                if (request !== campusRequest) return;
+                if (status === 'complete' && result && result.geocodes && result.geocodes.length) {
+                    var loc = result.geocodes[0].location;
+                    placeCampus(loc.lng, loc.lat, name);
+                    bridge('已定位 ' + name);
+                } else {
+                    placeCampus(fallbackLng, fallbackLat, name);
+                    bridge('已定位 ' + name + '（使用预设坐标）');
+                }
+            });
+        } else {
+            bridge('已定位 ' + name + '（使用预设坐标）');
+        }
+    }
+
+    function showUser(lng, lat) {
+        if (!ensureMap()) return;
+        lng = parseFloat(lng);
+        lat = parseFloat(lat);
+        if (userMarker) { map.remove(userMarker); userMarker = null; }
+        if (userCircle) { map.remove(userCircle); userCircle = null; }
+        userMarker = new AMap.Marker({
+            position: [lng, lat],
+            title: '我的位置',
+            label: { content: '我的位置', direction: 'top' }
+        });
+        try {
+            userCircle = new AMap.Circle({
+                center: [lng, lat],
+                radius: 40,
+                strokeColor: '#3F7BF6',
+                strokeOpacity: 0.9,
+                strokeWeight: 2,
+                fillColor: '#3F7BF6',
+                fillOpacity: 0.18
+            });
+            map.add(userCircle);
+        } catch (e) { /* Circle 不可用也不影响定位标记 */ }
+        map.add(userMarker);
+        map.setZoomAndCenter(17, [lng, lat]);
+        bridge('已定位到当前位置');
+    }
+
+    function fitCampus() {
+        if (!map) return;
+        if (currentCampus) {
+            setCampus(currentCampus.name, currentCampus.address, currentCampus.lng, currentCampus.lat, currentCampus.geocodeAddress);
+        }
+    }
+
+    function onReady() {
+        ensureMap();
+    }
+
+    // 异步加载让网络错误可以被明确报告，ready 仅由地图 complete 事件发送。
+    var sdk = document.createElement('script');
+    sdk.src = 'https://webapi.amap.com/maps?v=1.4.15&key=6fde5a876ab0dbcd0a5b58ed49c8e7ab';
+    sdk.onload = onReady;
+    sdk.onerror = function () { bridge('地图脚本加载失败，请检查网络后重试'); };
+    document.head.appendChild(sdk);
+    window.addEventListener('resize', function () {
+        if (!map && typeof AMap !== 'undefined') ensureMap();
+    });
+</script>
+</body>
+</html>

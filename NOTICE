@@ -1,0 +1,17 @@
+# NOTICE
+
+民职通（MZtong）基于开源项目 **AHUTong** 二次开发。
+
+- 原项目：AHUTong，由 OpenAHU 团队维护，<https://github.com/OpenAHU>
+- 本项目在原项目基础上完成应用名称、界面文案、主题与文档的调整，代码基线、Rust SDK
+  与桌面小组件等设计来自原项目。
+- 原项目的版权归其作者所有。本项目完整保留原项目的版权声明与许可证，未移除任何
+  原作者署名。
+- 原项目与本项目均以 **GNU General Public License v3.0** 发布，完整许可证文本见同一
+  目录下的 `LICENSE`。
+- 本项目不保留原项目作者的个人姓名与联系方式，贡献者信息以占位团队形式展示。
+- 第三方组件（GuiXu、Jetpack Compose、Hilt、Retrofit / OkHttp、Coil、Monet 等）的
+  授权说明见 `THIRD_PARTY_NOTICES.md`。
+
+分发本软件或其衍生作品时，请保留本 `NOTICE`、`LICENSE` 与 `THIRD_PARTY_NOTICES.md`
+文件，并遵守 GNU General Public License v3.0 的相关要求。

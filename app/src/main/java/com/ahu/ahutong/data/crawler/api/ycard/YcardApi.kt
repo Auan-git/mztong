@@ -1,0 +1,144 @@
+package com.ahu.ahutong.data.crawler.api.ycard
+
+import com.ahu.ahutong.data.SchoolConfig
+import com.ahu.ahutong.data.crawler.manager.CookieManager
+import com.ahu.ahutong.data.crawler.manager.TokenManager
+import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
+import com.ahu.ahutong.data.crawler.model.ycard.Token
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Call
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
+import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.Headers
+import retrofit2.http.POST
+import retrofit2.http.Query
+
+interface YcardApi {
+
+    @GET("/berserker-auth/cas/redirect/neusoftCas")
+    fun login(
+        @Query("targetUrl") targetUrl: String = SchoolConfig.YCARD_LOGIN_TARGET_URL
+    ): Call<ResponseBody>
+
+
+    @GET("/berserker-app/ykt/tsm/queryCard")
+    suspend fun loadCardRecharge(
+        @Query("scene") scene: String = "cardRecharge",
+        @Query("synAccessSource") synAccessSource: String = "h5",
+    ): CardInfo
+
+    @GET("/charge/feeitem/toAppitem")
+    suspend fun enterFeeItem(
+        @Query("feeitemid") feeitemid: String,
+        @Query("appId") appId: String,
+        @Query("loginFrom") loginFrom: String = "h5",
+        @Query("synAccessSource") synAccessSource: String = "h5",
+        @Query("synjones-auth") synjonesAuth: String
+    ): Response<ResponseBody>
+
+    @Headers("Referer: " + SchoolConfig.YCARD_CHARGE_APP_REFERER)
+    @GET("/charge/feeitem/singleFeeitem")
+    suspend fun getSingleFeeItem(
+        @Query("feeitemid") feeitemid: String
+    ): Response<ResponseBody>
+
+    @POST("/charge/order/thirdOrder")
+    suspend fun getOrderThirdData(@Body body: RequestBody): Response<ResponseBody>
+
+    @Headers(
+        "Referer: " + SchoolConfig.YCARD_CHARGE_APP_REFERER,
+        "Origin: " + SchoolConfig.YCARD_ORIGIN
+    )
+    @POST("/charge/feeitem/getThirdData")
+    suspend fun getFeeItemThirdData(@Body body: RequestBody): Response<ResponseBody>
+
+    @Headers(
+        "Referer: " + SchoolConfig.YCARD_CHARGE_APP_REFERER,
+        "Origin: " + SchoolConfig.YCARD_ORIGIN
+    )
+    @POST("/blade-pay/pay")
+    suspend fun pay(
+        @Body body: RequestBody
+    ): Response<ResponseBody>
+
+//    @GET("/charge/order/personal_data")
+//    suspend fun getPersonalData
+
+
+    @FormUrlEncoded
+    @POST("/berserker-auth/oauth/token")
+    fun getToken(
+        @Field("username") username: String,
+        @Field("password") password: String,
+        @Field("grant_type") grantType: String = "password",
+        @Field("scope") scope: String = "all",
+        @Field("loginFrom") loginFrom: String = "h5",
+        @Field("logintype") loginType: String = "sso",
+        @Field("device_token") deviceToken: String = "h5",
+        @Field("synAccessSource") synAccessSource: String = "h5",
+        @Header("Authorization") authorization: String = "Basic bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm06bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm1fc2VjcmV0",
+    ): Call<Token>
+    /*
+    username=&password=&grant_type=password&scope=all&loginFrom=h5&logintype=sso&device_token=h5&synAccessSource=h5
+    * */
+
+    companion object {
+
+        // 一卡通地址集中在 SchoolConfig，详见其中的 TODO(民政职业大学) 说明。
+        private val BASE_URL = SchoolConfig.YCARD_BASE_URL
+
+
+        private val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.HEADERS
+        }
+
+        private val cookieJar = CookieManager.cookieJar
+
+
+        val authInterceptor = Interceptor { chain ->
+            val request = chain.request()
+            val isTokenRequest = request.url.encodedPath.contains("/oauth/token") || request.url.encodedPath.contains("/neusoftCas")
+            if (isTokenRequest) {
+                return@Interceptor chain.proceed(request)
+            }
+
+            var token = TokenManager.getToken()
+
+            val newRequest = chain.request().newBuilder().apply {
+                if (!token.isNullOrBlank()) {
+                    header("Synjones-Auth", "bearer $token")
+                }
+            }.build()
+
+            chain.proceed(newRequest)
+        }
+
+        val okHttpClient = OkHttpClient.Builder()
+            .cookieJar(cookieJar)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .addInterceptor(interceptor = authInterceptor)
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+
+        val API = Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build().create(YcardApi::class.java)
+
+    }
+}
