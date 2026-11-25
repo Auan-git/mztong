@@ -33,3 +33,7 @@ hs_err_pid*.log
 *.bak*
 docs/_tmp_*.png
 学习资料/**/*.tmp
+# Release 签名文件（本地保留，不入库）
+app/mztong-release.jks
+*.jks
+build-release.log

@@ -33,6 +33,14 @@ data class ChaoxingWeekRow(
     @SerializedName("maxrq") val endDate: String? = null,
 )
 
+/** 教务校历页数据（周次 → 起止日期）。 */
+data class ChaoxingCalendar(
+    val semester: String,
+    val campusId: String,
+    val currentWeek: Int?,
+    val weeks: List<ChaoxingWeekRow>,
+)
+
 /** 当前登录人信息（/admin/api/getZclistByXnxq → data.jsxq）。 */
 data class ChaoxingUserInfo(
     @SerializedName("currentUserName") val userName: String? = null,

@@ -200,6 +200,13 @@ object SchoolConfig {
     /** 资源仓库中「学习资料」的根目录（各学院资料放在其下）。 */
     const val RESOURCE_MATERIALS_ROOT = "学习资料"
 
+    /** 民职通开源仓库地址：意见反馈、贡献名单等入口统一链接到这里。 */
+    const val PROJECT_REPOSITORY_URL =
+        "$GITEE_WEB_BASE_URL/$RESOURCE_REPOSITORY_OWNER/$RESOURCE_REPOSITORY_NAME"
+
+    /** 仓库 Issue 页面（反馈问题 / 提建议）。 */
+    const val PROJECT_ISSUES_URL = "$PROJECT_REPOSITORY_URL/issues"
+
     // ---------------------------------------------------------------- 运行时开关
 
     /**

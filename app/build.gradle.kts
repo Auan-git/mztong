@@ -34,16 +34,27 @@ android {
         applicationId = "com.ahu.ahutong"
         minSdk = 26
         targetSdk = 36
-        versionCode = 23
-        versionName = "1.5.2"
+        versionCode = 27
+        versionName = "1.6.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
     }
 
+    signingConfigs {
+        // Release 签名：本地生成，不提交到仓库（见 .gitignore）。
+        // 需要更换密码/别名时可用环境变量 MZ_RELEASE_STORE_PASSWORD / MZ_RELEASE_KEY_ALIAS / MZ_RELEASE_KEY_PASSWORD 覆盖。
+        create("release") {
+            storeFile = file("mztong-release.jks")
+            storePassword = System.getenv("MZ_RELEASE_STORE_PASSWORD") ?: "mztong2026"
+            keyAlias = System.getenv("MZ_RELEASE_KEY_ALIAS") ?: "mztong"
+            keyPassword = System.getenv("MZ_RELEASE_KEY_PASSWORD") ?: "mztong2026"
+        }
+    }
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isShrinkResources = true  // 移除无用的resource文件
             isMinifyEnabled = true //是否对代码进行混淆，true表示混淆
             proguardFiles(

@@ -177,6 +177,52 @@ class ChaoxingClient(
         )
     }
 
+    /**
+     * 读取教务校历（只调作息/校历接口，不做评教与课表校验）。
+     *
+     * 校历页只需要 `zclist`（周次与起止日期）、当前周次和学期，因此单独走这条轻量链路，
+     * 避免因未评教导致整个课表接口被拒绝时连校历也看不到。
+     */
+    suspend fun fetchCalendar(semester: String? = null): ChaoxingCalendar = withContext(Dispatchers.IO) {
+        val target = semester?.trim()?.takeIf { it.isNotEmpty() }
+        if (target != null && !Regex("""^\d{4}-\d{4}-[12]$""").matches(target)) {
+            throw ChaoxingException(ChaoxingErrorKind.INVALID_SEMESTER, "学期格式应为 2026-2027-1")
+        }
+        val pageUrl = (SchoolConfig.CHAOXING_BASE_URL + SchoolConfig.CHAOXING_STUDENT_TABLE_PATH).toHttpUrl()
+        val studentPageUrl = if (target == null) pageUrl else pageUrl.newBuilder()
+            .addQueryParameter("xnxq", target)
+            .build()
+        val page = parseStudentPage(get(studentPageUrl.toString()), expectedSemester = target)
+
+        val timeConfigUrl = (SchoolConfig.CHAOXING_BASE_URL + SchoolConfig.CHAOXING_TIME_CONFIG_PATH)
+            .toHttpUrl().newBuilder()
+            .addQueryParameter("xnxq", page.semester)
+            .addQueryParameter("role", "")
+            .addQueryParameter("userId", "")
+            .addQueryParameter("xqid", page.campusId)
+            .build()
+        val timeConfig = parseTimeConfig(getJson(timeConfigUrl.toString()))
+        val weeks = timeConfig.weekRows.orEmpty()
+            .mapNotNull { row ->
+                val week = row.week?.trim()?.toIntOrNull() ?: return@mapNotNull null
+                ChaoxingWeekRow(
+                    week = week.toString(),
+                    startDate = row.startDate?.trim()?.take(10)?.takeIf { it.length == 10 },
+                    endDate = row.endDate?.trim()?.take(10)?.takeIf { it.length == 10 },
+                )
+            }
+            .sortedBy { it.week?.toIntOrNull() ?: 0 }
+        if (weeks.isEmpty()) {
+            throw ChaoxingException(ChaoxingErrorKind.INVALID_RESPONSE, "教务系统暂未返回校历数据")
+        }
+        ChaoxingCalendar(
+            semester = page.semester,
+            campusId = page.campusId,
+            currentWeek = ChaoxingParsing.currentWeek(timeConfig),
+            weeks = weeks,
+        )
+    }
+
     // ------------------------------------------------------------------ 成绩查询
 
     /**
