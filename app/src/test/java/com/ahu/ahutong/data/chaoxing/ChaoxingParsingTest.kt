@@ -109,6 +109,32 @@ class ChaoxingParsingTest {
     }
 
     @Test
+    fun `four identical periods across teaching blocks become one app course`() {
+        val periods = listOf(
+            ChaoxingPeriod(1, 1, "一", "08:10", "08:55"),
+            ChaoxingPeriod(2, 1, "二", "09:05", "09:50"),
+            ChaoxingPeriod(3, 2, "三", "10:10", "10:55"),
+            ChaoxingPeriod(4, 2, "四", "11:05", "11:50"),
+        )
+        val schedule = ChaoxingParsing.normalize(
+            rows = listOf(3, 1, 4, 2).map {
+                row(period = it, day = 1, name = "高等数学", weeks = "1-5")
+            },
+            periods = periods,
+            semester = "2026-2027-1",
+            campusId = "campus-1",
+            campusName = "大兴校区",
+        )
+        // 教务按两个大节返回，进入 App 展示数据后应只有一张跨 1—4 节的课卡。
+        val courses = ChaoxingScheduleRepository.toCourseList(schedule)
+        assertEquals(1, courses.size)
+        assertEquals(1, courses.single().startTime)
+        assertEquals(4, courses.single().length)
+        assertEquals(listOf(1, 2, 3, 4, 5), courses.single().weekIndexes)
+        assertEquals("老师", courses.single().teacher)
+    }
+
+    @Test
     fun `parses hidden input fields and login form detection`() {
         val html = """
             <html><body>

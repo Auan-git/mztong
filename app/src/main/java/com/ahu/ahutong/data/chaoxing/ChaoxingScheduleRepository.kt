@@ -5,6 +5,7 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.User
+import com.ahu.ahutong.data.schedule.CourseMerge
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import com.ahu.ahutong.data.schedule.TimetableProvider
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +79,27 @@ object ChaoxingScheduleRepository {
             }
         }
 
+    /** 拉取教务校历（周次与起止日期），失败时返回原因供 UI 提示。 */
+    suspend fun fetchCalendar(semester: String? = null): Result<ChaoxingCalendar> =
+        withContext(Dispatchers.IO) {
+            try {
+                val client = client()
+                if (cachedSession == null && !client.hasSessionCookies()) {
+                    loginWithCachedCredential(client)
+                }
+                try {
+                    Result.success(client.fetchCalendar(semester))
+                } catch (e: ChaoxingException) {
+                    if (e.kind != ChaoxingErrorKind.SESSION_EXPIRED) throw e
+                    loginWithCachedCredential(client)
+                    Result.success(client.fetchCalendar(semester))
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "fetchCalendar failed: ${t.message}")
+                Result.failure(t)
+            }
+        }
+
     /** 拉取下学期课表（用于课表页「预览下学期」）。 */
     suspend fun fetchNextCourses(): Result<List<Course>> {
         val current = currentSemester()
@@ -90,25 +112,27 @@ object ChaoxingScheduleRepository {
     /** 课表原始数据 → App 内部 [Course] 列表。 */
     fun toCourseList(schedule: ChaoxingSchedule): List<Course> {
         val maxPeriod = schedule.periods.maxOfOrNull { it.index } ?: 0
-        return schedule.meetings
-            .filter { it.startPeriod in 1..maxPeriod && it.endPeriod <= maxPeriod }
-            .map { meeting ->
-                // 说明：Course 是 Java 模型，getWeekday()/setWeekday(String) 类型不一致，
-                // Kotlin 不会生成合成属性，这里统一用显式 setter。
-                Course().apply {
-                    setName(meeting.courseName)
-                    setTeacher(meeting.teacher)
-                    setLocation(meeting.location)
-                    setWeekday(meeting.dayOfWeek.toString())
-                    setStartTime(meeting.startPeriod.toString())
-                    setLength((meeting.endPeriod - meeting.startPeriod + 1).coerceAtLeast(1).toString())
-                    setStartWeek((meeting.weeks.minOrNull() ?: 1).toString())
-                    setEndWeek((meeting.weeks.maxOrNull() ?: 1).toString())
-                    setWeekIndexes(meeting.weeks)
-                    setCourseId(meeting.courseCode)
-                    setExtra(meeting.campus)
+        return CourseMerge.mergeAdjacent(
+            schedule.meetings
+                .filter { it.startPeriod in 1..maxPeriod && it.endPeriod <= maxPeriod }
+                .map { meeting ->
+                    // 说明：Course 是 Java 模型，getWeekday()/setWeekday(String) 类型不一致，
+                    // Kotlin 不会生成合成属性，这里统一用显式 setter。
+                    Course().apply {
+                        setName(meeting.courseName)
+                        setTeacher(meeting.teacher)
+                        setLocation(meeting.location)
+                        setWeekday(meeting.dayOfWeek.toString())
+                        setStartTime(meeting.startPeriod.toString())
+                        setLength((meeting.endPeriod - meeting.startPeriod + 1).coerceAtLeast(1).toString())
+                        setStartWeek((meeting.weeks.minOrNull() ?: 1).toString())
+                        setEndWeek((meeting.weeks.maxOrNull() ?: 1).toString())
+                        setWeekIndexes(meeting.weeks)
+                        setCourseId(meeting.courseCode)
+                        setExtra(meeting.campus)
+                    }
                 }
-            }
+        )
     }
 
     /** 把学期、开学日期、教学周状态与作息表写进本地缓存。 */

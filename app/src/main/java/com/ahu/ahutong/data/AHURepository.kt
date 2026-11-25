@@ -2,6 +2,7 @@ package com.ahu.ahutong.data
 
 import android.util.Log
 import com.ahu.ahutong.data.base.BaseDataSource
+import com.ahu.ahutong.data.schedule.CourseMerge
 import com.ahu.ahutong.data.schedule.CustomCourseSupport
 import com.ahu.ahutong.data.chaoxing.ChaoxingScheduleRepository
 import com.ahu.ahutong.data.crawler.CrawlerDataSource
@@ -113,16 +114,16 @@ object AHURepository {
     /** 把本地自定义课程合并进服务端课表（刷新课表不会丢失自定义课程）。 */
     private fun mergeCustomCourses(term: String?, serverCourses: List<Course>?): List<Course> {
         val base = serverCourses.orEmpty()
-        if (term.isNullOrBlank()) return base
+        if (term.isNullOrBlank()) return CourseMerge.mergeAdjacent(base)
         val custom = runCatching { AHUCache.getCustomCourses(term) }.getOrDefault(emptyList())
-        return CustomCourseSupport.merge(base, custom)
+        return CourseMerge.mergeAdjacent(CustomCourseSupport.merge(base, custom))
     }
 
     suspend fun getNextSchedule(isRefresh: Boolean = false): Result<List<Course>> = withContext(Dispatchers.IO) {
         if (!isRefresh && !AHUCache.getMockData()) {
             AHUCache.getNextSchedule()?.let {
                 Log.e(TAG, "getNextSchedule: 本地获取")
-                return@withContext Result.success(it)
+                return@withContext Result.success(CourseMerge.mergeAdjacent(it))
             }
         }
 
@@ -130,7 +131,7 @@ object AHURepository {
             val response = dataSource.getNextSchedule()
             if (response.isSuccessful) {
                 AHUCache.saveNextSchedule(response.data)
-                Result.success(response.data)
+                Result.success(CourseMerge.mergeAdjacent(response.data))
             } else {
                 Result.failure(Throwable(response.msg))
             }
