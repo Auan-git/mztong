@@ -1,0 +1,326 @@
+[
+  {
+    "id": "yj-001",
+    "campus": "燕郊校区",
+    "name": "体育馆",
+    "category": "运动",
+    "lng": 116.796019,
+    "lat": 39.954234,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-002",
+    "campus": "燕郊校区",
+    "name": "二号楼",
+    "category": "学习",
+    "lng": 116.797175,
+    "lat": 39.954589,
+    "note": "",
+    "aliases": [
+      "假肢楼"
+    ]
+  },
+  {
+    "id": "yj-003",
+    "campus": "燕郊校区",
+    "name": "康复楼",
+    "category": "学习",
+    "lng": 116.797055,
+    "lat": 39.955083,
+    "note": "",
+    "aliases": [
+      "实训楼"
+    ]
+  },
+  {
+    "id": "yj-004",
+    "campus": "燕郊校区",
+    "name": "六号公寓",
+    "category": "宿舍",
+    "lng": 116.79497,
+    "lat": 39.95532,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-005",
+    "campus": "燕郊校区",
+    "name": "图书馆",
+    "category": "学习",
+    "lng": 116.796865,
+    "lat": 39.953886,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-006",
+    "campus": "燕郊校区",
+    "name": "行政楼",
+    "category": "行政",
+    "lng": 116.797306,
+    "lat": 39.954155,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-007",
+    "campus": "燕郊校区",
+    "name": "学术交流中心",
+    "category": "实训",
+    "lng": 116.795815,
+    "lat": 39.951963,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-008",
+    "campus": "燕郊校区",
+    "name": "南门",
+    "category": "校门",
+    "lng": 116.79758,
+    "lat": 39.951856,
+    "note": "此处有外卖柜",
+    "aliases": []
+  },
+  {
+    "id": "yj-009",
+    "campus": "燕郊校区",
+    "name": "驿站+超市",
+    "category": "其他",
+    "lng": 116.798315,
+    "lat": 39.95258,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-010",
+    "campus": "燕郊校区",
+    "name": "五号公寓",
+    "category": "宿舍",
+    "lng": 116.795348,
+    "lat": 39.951737,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-011",
+    "campus": "燕郊校区",
+    "name": "一号楼",
+    "category": "学习",
+    "lng": 116.79729,
+    "lat": 39.952103,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-012",
+    "campus": "燕郊校区",
+    "name": "三号公寓",
+    "category": "其他",
+    "lng": 116.797934,
+    "lat": 39.952432,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-013",
+    "campus": "燕郊校区",
+    "name": "四号公寓",
+    "category": "宿舍",
+    "lng": 116.797816,
+    "lat": 39.952999,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-014",
+    "campus": "燕郊校区",
+    "name": "二号公寓",
+    "category": "宿舍",
+    "lng": 116.796888,
+    "lat": 39.95302,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-015",
+    "campus": "燕郊校区",
+    "name": "一号公寓",
+    "category": "宿舍",
+    "lng": 116.796931,
+    "lat": 39.952724,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-016",
+    "campus": "燕郊校区",
+    "name": "教工公寓二号楼",
+    "category": "其他",
+    "lng": 116.797317,
+    "lat": 39.953637,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-017",
+    "campus": "燕郊校区",
+    "name": "餐厅",
+    "category": "餐饮",
+    "lng": 116.795407,
+    "lat": 39.952173,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-018",
+    "campus": "燕郊校区",
+    "name": "生命文化实训",
+    "category": "实训",
+    "lng": 116.795353,
+    "lat": 39.957296,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "yj-019",
+    "campus": "燕郊校区",
+    "name": "教工一号公寓",
+    "category": "其他",
+    "lng": 116.796442,
+    "lat": 39.957427,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-001",
+    "campus": "大兴校区",
+    "name": "民政部培训中心",
+    "category": "实训",
+    "lng": 116.373514,
+    "lat": 39.758725,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-002",
+    "campus": "大兴校区",
+    "name": "体育馆",
+    "category": "运动",
+    "lng": 116.372216,
+    "lat": 39.758692,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-003",
+    "campus": "大兴校区",
+    "name": "综合楼",
+    "category": "学习",
+    "lng": 116.375776,
+    "lat": 39.755509,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-004",
+    "campus": "大兴校区",
+    "name": "东门",
+    "category": "校门",
+    "lng": 116.37687,
+    "lat": 39.75503,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-005",
+    "campus": "大兴校区",
+    "name": "一号食堂",
+    "category": "餐饮",
+    "lng": 116.375556,
+    "lat": 39.753925,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-006",
+    "campus": "大兴校区",
+    "name": "一号公寓",
+    "category": "宿舍",
+    "lng": 116.373533,
+    "lat": 39.75376,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-007",
+    "campus": "大兴校区",
+    "name": "二号公寓",
+    "category": "宿舍",
+    "lng": 116.373544,
+    "lat": 39.754362,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-008",
+    "campus": "大兴校区",
+    "name": "一号教学楼",
+    "category": "学习",
+    "lng": 116.374826,
+    "lat": 39.751739,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-009",
+    "campus": "大兴校区",
+    "name": "躬行楼",
+    "category": "学习",
+    "lng": 116.374086,
+    "lat": 39.752498,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-010",
+    "campus": "大兴校区",
+    "name": "实训楼",
+    "category": "实训",
+    "lng": 116.37554,
+    "lat": 39.752543,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-011",
+    "campus": "大兴校区",
+    "name": "图书馆",
+    "category": "学习",
+    "lng": 116.3748,
+    "lat": 39.753298,
+    "note": "",
+    "aliases": []
+  },
+  {
+    "id": "dx-012",
+    "campus": "大兴校区",
+    "name": "西门",
+    "category": "校门",
+    "lng": 116.372568,
+    "lat": 39.755851,
+    "note": "此处有外卖柜",
+    "aliases": []
+  },
+  {
+    "id": "dx-013",
+    "campus": "大兴校区",
+    "name": "南门",
+    "category": "校门",
+    "lng": 116.374784,
+    "lat": 39.750926,
+    "note": "",
+    "aliases": []
+  }
+]

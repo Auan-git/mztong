@@ -33,11 +33,15 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,7 +66,65 @@ import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.ahu.ahutong.ui.theme.withNight
 import kotlinx.coroutines.delay
+import org.json.JSONArray
 import org.json.JSONObject
+
+/** 校园固定点位（来自 assets/campus_points.json）。 */
+private data class CampusPoint(
+    val id: String,
+    val campus: String,
+    val name: String,
+    val category: String,
+    val lng: Double,
+    val lat: Double,
+    val note: String,
+)
+
+private fun loadCampusPoints(context: Context): List<CampusPoint> {
+    return runCatching {
+        val raw = context.assets.open("campus_points.json")
+            .bufferedReader(Charsets.UTF_8)
+            .use { it.readText() }
+        val array = JSONArray(raw)
+        (0 until array.length()).mapNotNull { index ->
+            val item = array.optJSONObject(index) ?: return@mapNotNull null
+            val id = item.optString("id").trim()
+            val campus = item.optString("campus").trim()
+            val name = item.optString("name").trim()
+            val lng = item.optDouble("lng", Double.NaN)
+            val lat = item.optDouble("lat", Double.NaN)
+            if (id.isEmpty() || campus.isEmpty() || name.isEmpty() || lng.isNaN() || lat.isNaN()) {
+                null
+            } else {
+                CampusPoint(
+                    id = id,
+                    campus = campus,
+                    name = name,
+                    category = item.optString("category", "其他"),
+                    lng = lng,
+                    lat = lat,
+                    note = item.optString("note", ""),
+                )
+            }
+        }
+    }.getOrDefault(emptyList())
+}
+
+private fun campusPointsToJson(points: List<CampusPoint>): String {
+    val array = JSONArray()
+    points.forEach { point ->
+        array.put(JSONObject().apply {
+            put("id", point.id)
+            put("campus", point.campus)
+            put("name", point.name)
+            put("category", point.category)
+            put("lng", point.lng)
+            put("lat", point.lat)
+            put("note", point.note)
+        })
+    }
+    return array.toString()
+}
 
 /**
  * 「小工具 → 校园地图」。
@@ -83,8 +145,15 @@ fun CampusMap(onBack: () -> Unit = {}) {
     var loadAttempt by remember { mutableIntStateOf(0) }
     var locating by remember { mutableStateOf(false) }
     var webView by remember { mutableStateOf<WebView?>(null) }
+    var satelliteOn by remember { mutableStateOf(false) }
+    var pointMenuExpanded by remember { mutableStateOf(false) }
+    var pendingUserPoint by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var newPointName by remember { mutableStateOf("") }
+    var userPointToDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
     val selectedCampus = campuses.getOrElse(selectedIndex) { campuses.first() }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
+    val campusPoints = remember(context) { loadCampusPoints(context) }
+    val campusPointsJson = remember(campusPoints) { campusPointsToJson(campusPoints) }
 
     fun showUserLocation(location: Location) {
         val lat = location.latitude
@@ -193,6 +262,42 @@ fun CampusMap(onBack: () -> Unit = {}) {
                     pageReady = false
                     status = message
                 }
+                message.startsWith("longtap:") -> {
+                    val parts = message.removePrefix("longtap:").split(",")
+                    val lng = parts.getOrNull(0)?.toDoubleOrNull()
+                    val lat = parts.getOrNull(1)?.toDoubleOrNull()
+                    if (lng != null && lat != null) {
+                        pendingUserPoint = lng to lat
+                        newPointName = ""
+                    }
+                }
+                message.startsWith("user-point-click:") -> {
+                    runCatching {
+                        val raw = message.removePrefix("user-point-click:")
+                        val json = JSONObject(raw)
+                        userPointToDelete = json.optString("id") to json.optString("name")
+                    }
+                }
+                message.startsWith("focus-point:") -> {
+                    status = "点位：${message.removePrefix("focus-point:")}"
+                }
+                message.startsWith("user-point-added:") -> {
+                    status = "已添加标点：${message.removePrefix("user-point-added:")}"
+                }
+                message == "user-point-removed" -> {
+                    status = "已删除标点"
+                }
+                message.startsWith("satellite:") -> {
+                    status = if (message.endsWith("on")) "已切换到卫星图" else "已切换到标准图"
+                }
+                message.startsWith("point-click:") -> {
+                    val pointId = message.removePrefix("point-click:").trim()
+                    val point = campusPoints.firstOrNull { it.id == pointId }
+                    if (point != null) {
+                        status = "点位：${point.name}（${point.category}）"
+                        if (point.note.isNotBlank()) status = "$status · ${point.note}"
+                    }
+                }
                 !mapFailed -> status = message
             }
         }
@@ -201,6 +306,7 @@ fun CampusMap(onBack: () -> Unit = {}) {
     LaunchedEffect(selectedIndex, pageInitialized) {
         if (pageInitialized) {
             status = "正在定位 ${selectedCampus.name}…"
+            webView?.evaluateJavascript("setPoints($campusPointsJson)", null)
             webView?.evaluateJavascript(
                 "setCampus(${JSONObject.quote(selectedCampus.name)}, " +
                     "${JSONObject.quote(selectedCampus.address)}, " +
@@ -367,6 +473,48 @@ fun CampusMap(onBack: () -> Unit = {}) {
                     style = MaterialTheme.typography.bodySmall,
                     color = 40.a1 withNight 80.a1,
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box {
+                        TextButton(enabled = pageReady, onClick = { pointMenuExpanded = true }) {
+                            Text(text = "选择点位")
+                        }
+                        DropdownMenu(
+                            expanded = pointMenuExpanded,
+                            onDismissRequest = { pointMenuExpanded = false },
+                        ) {
+                            val pointsHere = campusPoints.filter { it.campus == selectedCampus.name }
+                            if (pointsHere.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("本校区暂无固定点位") },
+                                    onClick = { pointMenuExpanded = false },
+                                    enabled = false,
+                                )
+                            }
+                            pointsHere.forEach { point ->
+                                DropdownMenuItem(
+                                    text = { Text("${point.name} · ${point.category}") },
+                                    onClick = {
+                                        pointMenuExpanded = false
+                                        webView?.evaluateJavascript(
+                                            "focusPoint(${JSONObject.quote(point.id)})",
+                                            null,
+                                        )
+                                        status = "点位：${point.name}（${point.category}）"
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    TextButton(
+                        enabled = pageReady,
+                        onClick = {
+                            satelliteOn = !satelliteOn
+                            webView?.evaluateJavascript("setSatellite($satelliteOn)", null)
+                        },
+                    ) {
+                        Text(text = if (satelliteOn) "标准图" else "卫星图")
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
                         onClick = { ensurePermissionAndLocate() },
@@ -382,5 +530,70 @@ fun CampusMap(onBack: () -> Unit = {}) {
                 }
             }
         }
+    }
+    pendingUserPoint?.let { (lng, lat) ->
+        AlertDialog(
+            onDismissRequest = { pendingUserPoint = null },
+            title = { Text("添加标点") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "坐标：%.6f, %.6f".format(lat, lng),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = newPointName,
+                        onValueChange = { newPointName = it },
+                        singleLine = true,
+                        label = { Text("名称") },
+                        placeholder = { Text("例如：我的宿舍") },
+                    )
+                    Text(
+                        text = "标点仅保存在本机，不会上传或分享。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = 40.a1 withNight 80.a1,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val name = newPointName.trim().ifEmpty { "我的标点" }
+                    val point = JSONObject().apply {
+                        put("id", "user-" + System.currentTimeMillis())
+                        put("campus", selectedCampus.name)
+                        put("name", name)
+                        put("category", "其他")
+                        put("lng", lng)
+                        put("lat", lat)
+                        put("note", "")
+                        put("aliases", JSONArray())
+                    }
+                    webView?.evaluateJavascript("addUserPoint($point)", null)
+                    status = "已添加标点：$name"
+                    pendingUserPoint = null
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingUserPoint = null }) { Text("取消") }
+            },
+        )
+    }
+
+    userPointToDelete?.let { (pointId, pointName) ->
+        AlertDialog(
+            onDismissRequest = { userPointToDelete = null },
+            title = { Text("我的标点") },
+            text = { Text("「$pointName」仅保存在本机，删除后不可恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    webView?.evaluateJavascript("removeUserPoint(${JSONObject.quote(pointId)})", null)
+                    status = "已删除标点：$pointName"
+                    userPointToDelete = null
+                }) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { userPointToDelete = null }) { Text("取消") }
+            },
+        )
     }
 }

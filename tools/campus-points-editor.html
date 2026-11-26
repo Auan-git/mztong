@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>民职通 · 校园点位编辑器</title>
+<style>
+  :root {
+    --blue: #1F4E79;
+    --blue-soft: #E8F0F8;
+    --gold: #C9A227;
+    --text: #1F2933;
+    --muted: #5B6B7B;
+    --line: #DCE5EE;
+    --bg: #F5F8FC;
+    --card: #FFFFFF;
+    --danger: #C0392B;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: var(--blue);
+    color: #fff;
+    flex: 0 0 auto;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 700; }
+  header .sub { font-size: 12px; opacity: .8; }
+  header .spacer { flex: 1; }
+  header .count {
+    font-size: 12px;
+    background: rgba(255,255,255,.16);
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  .main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+  }
+  .panel { overflow: auto; min-height: 0; }
+  .form-panel { background: var(--card); border-right: 1px solid var(--line); padding: 16px; }
+  .map-panel { position: relative; background: #DCE7F2; }
+  #map { position: absolute; inset: 0; }
+  .map-toggle {
+    position: absolute; right: 12px; top: 12px; z-index: 8;
+    background: rgba(255,255,255,.96); border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 14px; font-size: 12px; color: var(--blue);
+    box-shadow: 0 2px 8px rgba(31,78,121,.12);
+  }
+  .map-hint {
+    position: absolute; left: 12px; bottom: 12px; z-index: 5;
+    background: rgba(255,255,255,.94); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; font-size: 12px; color: var(--muted);
+    max-width: 320px; line-height: 1.5;
+  }
+  .map-error {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; color: var(--muted); font-size: 13px; line-height: 1.8;
+    background: linear-gradient(180deg,#EAF1F8,#DCE7F2);
+  }
+  h2 { font-size: 14px; margin: 0 0 12px; color: var(--blue); }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; font-size: 13px; color: var(--text); background: #fff;
+    outline: none; font-family: inherit;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--blue); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .buttons { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    border: none; border-radius: 8px; padding: 9px 14px; font-size: 13px;
+    cursor: pointer; font-family: inherit; background: var(--blue-soft); color: var(--blue);
+    transition: .15s;
+  }
+  button:hover { filter: brightness(.96); }
+  button.primary { background: var(--blue); color: #fff; }
+  button.gold { background: var(--gold); color: #2A2408; }
+  button.ghost { background: #fff; border: 1px solid var(--line); color: var(--muted); }
+  button.danger { background: #FDECEA; color: var(--danger); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .divider { height: 1px; background: var(--line); margin: 16px 0; }
+  .bottom {
+    flex: 0 0 38vh; min-height: 220px; background: var(--card);
+    border-top: 1px solid var(--line);
+    display: grid; grid-template-columns: 1fr 420px;
+  }
+  .list-panel { overflow: auto; padding: 12px 16px; border-right: 1px solid var(--line); }
+  .list-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .list-head h2 { margin: 0; flex: 1; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--card); color: var(--muted); font-weight: 600; z-index: 2; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.actions button { padding: 4px 8px; font-size: 12px; }
+  tr.editing { background: #FFF8E1; }
+  .empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; }
+  .json-panel { display: flex; flex-direction: column; min-height: 0; padding: 12px 16px 16px; }
+  .json-panel textarea {
+    flex: 1; min-height: 120px; resize: none; border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px; font-size: 11px; line-height: 1.5;
+    font-family: Consolas, "Courier New", monospace; color: #23313F; background: #FBFDFF;
+  }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    background: rgba(31,78,121,.94); color: #fff; padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; opacity: 0; pointer-events: none; transition: .2s; z-index: 50;
+    max-width: 80vw; text-align: center;
+  }
+  .toast.show { opacity: 1; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 11px; background: var(--blue-soft); color: var(--blue); }
+  .notice { background: #FFF8E1; border: 1px solid #F0E0A8; color: #6B5510; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.6; margin-bottom: 12px; }
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    .main { grid-template-columns: 1fr; }
+    .map-panel { height: 46vh; }
+    .bottom { grid-template-columns: 1fr; flex-basis: auto; }
+    .json-panel { height: 220px; }
+    .list-panel { max-height: 260px; }
+  }
+</style>
+<script>
+  // 高德 JS API：与 App 内 campus_map.html 使用同一 key + 安全密钥
+  window._AMapSecurityConfig = { securityJsCode: '380f27e4262d748391a5808903b0563b' };
+</script>
+</head>
+<body>
+<header>
+  <h1>民职通 · 校园点位编辑器</h1>
+  <span class="sub">固定点位（GCJ-02） · 本地编辑，不上传</span>
+  <span class="spacer"></span>
+  <span class="count" id="count">0 个点位</span>
+</header>
+
+<div class="main">
+  <section class="panel form-panel">
+    <h2 id="formTitle">新增点位</h2>
+    <div class="notice">
+      坐标使用高德 GCJ-02；点击右侧地图可直接取点。数据保存在本机浏览器，改完点「下载 JSON」放到
+      <code>app/src/main/assets/campus_points.json</code>。
+    </div>
+
+    <div class="field">
+      <label for="campus">校区</label>
+      <select id="campus">
+        <option value="大兴校区">大兴校区</option>
+        <option value="燕郊校区">燕郊校区</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="name">地点名称（必填）</label>
+      <input id="name" type="text" placeholder="例如：第一食堂" maxlength="40" />
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="lng">经度（高德，必填）</label>
+        <input id="lng" type="number" step="0.000001" placeholder="116.349512" />
+      </div>
+      <div class="field">
+        <label for="lat">纬度（高德，必填）</label>
+        <input id="lat" type="number" step="0.000001" placeholder="39.754678" />
+      </div>
+    </div>
+    <div class="field">
+      <label for="category">分类</label>
+      <select id="category">
+        <option>餐饮</option>
+        <option>学习</option>
+        <option>运动</option>
+        <option>宿舍</option>
+        <option>校门</option>
+        <option>实训</option>
+        <option>行政</option>
+        <option selected>其他</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="note">备注 / 入口说明（可空）</label>
+      <input id="note" type="text" placeholder="例如：东门入口" maxlength="60" />
+    </div>
+    <div class="field">
+      <label for="aliases">别名（可空，逗号分隔）</label>
+      <input id="aliases" type="text" placeholder="例如：一食堂,食堂" maxlength="120" />
+    </div>
+
+    <div class="buttons">
+      <button class="primary" id="saveBtn">保存点位</button>
+      <button class="ghost" id="cancelEditBtn" style="display:none">取消编辑</button>
+      <button class="ghost" id="pickHintBtn">地图取点说明</button>
+    </div>
+
+    <div class="divider"></div>
+    <div class="hint">
+      提示：<br />
+      1. 点地图任意位置可自动填入经纬度；<br />
+      2. 建议标在建筑「入口」而不是楼中心；<br />
+      3. 同一校区不能重名；<br />
+      4. 用户自己标注的点位由 App 存本机，不需要写进这里。
+    </div>
+  </section>
+
+  <section class="map-panel">
+    <div id="map"></div>
+    <button class="map-toggle" id="satelliteBtn" type="button">查看卫星图</button>
+    <div class="map-error" id="mapError">
+      地图暂时加载失败（可能是网络或高德 key 域名限制）。<br />
+      不影响使用：直接手动输入经纬度即可，或使用 App 内的「校园地图」取点。
+    </div>
+    <div class="map-hint">点击地图取点（高德 GCJ-02），或拖动/缩放查看校区。切换校区后地图会自动居中。</div>
+  </section>
+</div>
+
+<div class="bottom">
+  <section class="panel list-panel">
+    <div class="list-head">
+      <h2>点位列表</h2>
+      <select id="filterCampus" style="width:140px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;">
+        <option value="">全部校区</option>
+        <option value="大兴校区">大兴校区</option>
+        <option value="燕郊校区">燕郊校区</option>
+      </select>
+    </div>
+    <div id="listWrap">
+      <div class="empty">还没有点位，先在左侧新增一个吧。</div>
+    </div>
+  </section>
+
+  <section class="panel json-panel">
+    <div class="list-head">
+      <h2>campus_points.json</h2>
+      <button class="ghost" id="copyBtn">复制</button>
+      <button class="gold" id="downloadBtn">下载 JSON</button>
+    </div>
+    <textarea id="jsonPreview" readonly spellcheck="false"></textarea>
+    <div class="buttons">
+      <button class="ghost" id="importBtn">导入 JSON</button>
+      <input id="importFile" type="file" accept=".json,application/json" style="display:none" />
+      <button class="danger" id="clearBtn">清空全部</button>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "mztong_campus_points_v1";
+  var CAMPUS_CENTER = {
+    "大兴校区": [116.3490, 39.7545],
+    "燕郊校区": [116.796135, 39.954483]
+  };
+
+  var points = [];
+  var editingId = null;
+  var map = null;
+  var markers = [];
+  var pickMarker = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var toastEl = $("toast");
+  var toastTimer = null;
+
+  function toast(message) {
+    toastEl.textContent = message;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 2200);
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function loadStorage() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      var data = JSON.parse(raw);
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveStorage() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(points));
+    } catch (e) {
+      toast("浏览器本地存储不可用，请及时下载 JSON 保存");
+    }
+  }
+
+  function campusCode(campus) {
+    return campus === "燕郊校区" ? "yj" : "dx";
+  }
+
+  function nextId(campus) {
+    var prefix = campusCode(campus);
+    var max = 0;
+    points.forEach(function (p) {
+      var m = /^([a-z]+)-(\d+)$/.exec(String(p.id || ""));
+      if (m && m[1] === prefix) {
+        var n = parseInt(m[2], 10);
+        if (n > max) max = n;
+      }
+    });
+    var seq = String(max + 1);
+    while (seq.length < 3) seq = "0" + seq;
+    return prefix + "-" + seq;
+  }
+
+  function round6(value) {
+    return Math.round(Number(value) * 1e6) / 1e6;
+  }
+
+  function parseAliases(text) {
+    if (!text) return [];
+    var seen = {};
+    var result = [];
+    text.split(/[,，、;；]/).forEach(function (piece) {
+      var item = piece.trim();
+      if (item && !seen[item]) {
+        seen[item] = true;
+        result.push(item);
+      }
+    });
+    return result;
+  }
+
+  function validateForm() {
+    var campus = $("campus").value;
+    var name = $("name").value.trim();
+    var lng = Number($("lng").value);
+    var lat = Number($("lat").value);
+    if (!name) { toast("请填写地点名称"); $("name").focus(); return null; }
+    if (!isFinite(lng) || lng === 0 || lng < 73 || lng > 136) {
+      toast("经度需在 73~136 之间（高德坐标）"); $("lng").focus(); return null;
+    }
+    if (!isFinite(lat) || lat === 0 || lat < 3 || lat > 54) {
+      toast("纬度需在 3~54 之间（高德坐标）"); $("lat").focus(); return null;
+    }
+    var duplicate = points.filter(function (p) {
+      return p.campus === campus && p.name === name && p.id !== editingId;
+    });
+    if (duplicate.length) {
+      toast("【" + campus + "】已存在同名点位：" + duplicate[0].id);
+      return null;
+    }
+    return {
+      campus: campus,
+      name: name,
+      category: $("category").value,
+      lng: round6(lng),
+      lat: round6(lat),
+      note: $("note").value.trim(),
+      aliases: parseAliases($("aliases").value)
+    };
+  }
+
+  function fillForm(point) {
+    $("campus").value = point.campus || "大兴校区";
+    $("name").value = point.name || "";
+    $("lng").value = point.lng != null ? point.lng : "";
+    $("lat").value = point.lat != null ? point.lat : "";
+    var category = point.category || "其他";
+    var optionExists = false;
+    for (var i = 0; i < $("category").options.length; i++) {
+      if ($("category").options[i].value === category) { optionExists = true; break; }
+    }
+    $("category").value = optionExists ? category : "其他";
+    $("note").value = point.note || "";
+    $("aliases").value = (point.aliases || []).join(",");
+  }
+
+  function clearForm() {
+    editingId = null;
+    $("name").value = "";
+    $("lng").value = "";
+    $("lat").value = "";
+    $("note").value = "";
+    $("aliases").value = "";
+    $("category").value = "其他";
+    $("formTitle").textContent = "新增点位";
+    $("saveBtn").textContent = "保存点位";
+    $("cancelEditBtn").style.display = "none";
+    if (pickMarker && map) { map.remove(pickMarker); pickMarker = null; }
+  }
+
+  function startEdit(id) {
+    var point = points.filter(function (p) { return p.id === id; })[0];
+    if (!point) return;
+    editingId = id;
+    fillForm(point);
+    $("formTitle").textContent = "编辑点位 " + id;
+    $("saveBtn").textContent = "更新点位";
+    $("cancelEditBtn").style.display = "";
+    if (map) {
+      map.setZoomAndCenter(17, [Number(point.lng), Number(point.lat)]);
+      showPickMarker(Number(point.lng), Number(point.lat));
+    }
+  }
+
+  function savePoint() {
+    var data = validateForm();
+    if (!data) return;
+    if (editingId) {
+      points = points.map(function (p) {
+        if (p.id !== editingId) return p;
+        return {
+          id: p.id,
+          campus: data.campus,
+          name: data.name,
+          category: data.category,
+          lng: data.lng,
+          lat: data.lat,
+          note: data.note,
+          aliases: data.aliases
+        };
+      });
+      toast("已更新 " + editingId);
+    } else {
+      var point = {
+        id: nextId(data.campus),
+        campus: data.campus,
+        name: data.name,
+        category: data.category,
+        lng: data.lng,
+        lat: data.lat,
+        note: data.note,
+        aliases: data.aliases
+      };
+      points.push(point);
+      toast("已新增 " + point.id);
+    }
+    saveStorage();
+    renderAll();
+    clearForm();
+  }
+
+  function removePoint(id) {
+    var point = points.filter(function (p) { return p.id === id; })[0];
+    if (!point) return;
+    if (!confirm("删除「" + point.campus + " / " + point.name + "」？")) return;
+    points = points.filter(function (p) { return p.id !== id; });
+    saveStorage();
+    if (editingId === id) clearForm();
+    renderAll();
+    toast("已删除 " + id);
+  }
+
+  function renderList() {
+    var filter = $("filterCampus").value;
+    var rows = points.filter(function (p) { return !filter || p.campus === filter; });
+    if (!rows.length) {
+      $("listWrap").innerHTML = '<div class="empty">' + (points.length ? "当前筛选下没有点位。" : "还没有点位，先在左侧新增一个吧。") + "</div>";
+      return;
+    }
+    var html = '<table><thead><tr><th>id</th><th>校区</th><th>名称</th><th>分类</th><th class="num">经度</th><th class="num">纬度</th><th>备注</th><th>操作</th></tr></thead><tbody>';
+    rows.forEach(function (p) {
+      html += '<tr class="' + (p.id === editingId ? "editing" : "") + '">' +
+        "<td>" + escapeHtml(p.id) + "</td>" +
+        "<td>" + escapeHtml(p.campus) + "</td>" +
+        "<td>" + escapeHtml(p.name) + "</td>" +
+        '<td><span class="badge">' + escapeHtml(p.category) + "</span></td>" +
+        '<td class="num">' + Number(p.lng).toFixed(6) + "</td>" +
+        '<td class="num">' + Number(p.lat).toFixed(6) + "</td>" +
+        "<td>" + escapeHtml(p.note || "") + "</td>" +
+        '<td class="actions"><button class="ghost" data-edit="' + escapeHtml(p.id) + '">编辑</button> ' +
+        '<button class="danger" data-del="' + escapeHtml(p.id) + '">删除</button></td>' +
+        "</tr>";
+    });
+    html += "</tbody></table>";
+    $("listWrap").innerHTML = html;
+  }
+
+  function renderJson() {
+    $("jsonPreview").value = JSON.stringify(points, null, 2);
+    $("count").textContent = points.length + " 个点位";
+  }
+
+  function jsonForDownload() {
+    return JSON.stringify(points, null, 2) + "\n";
+  }
+
+  function markerFor(point) {
+    var marker = new AMap.Marker({
+      position: [Number(point.lng), Number(point.lat)],
+      title: point.name,
+      label: { content: point.name, direction: "top" }
+    });
+    marker.on("click", function () { startEdit(point.id); });
+    return marker;
+  }
+
+  function renderMarkers(fitView) {
+    if (!map) return;
+    if (markers.length) { map.remove(markers); }
+    markers = [];
+    var filter = $("filterCampus").value;
+    var visible = points.filter(function (p) { return !filter || p.campus === filter; });
+    visible.forEach(function (p) {
+      var marker = markerFor(p);
+      map.add(marker);
+      markers.push(marker);
+    });
+    if (fitView && markers.length) {
+      map.setFitView(markers, false, [80, 80, 80, 120]);
+    }
+  }
+
+  function showPickMarker(lng, lat) {
+    if (!map) return;
+    if (pickMarker) { map.remove(pickMarker); pickMarker = null; }
+    pickMarker = new AMap.Marker({
+      position: [lng, lat],
+      title: "当前取点",
+      label: { content: "当前取点", direction: "top" },
+      zIndex: 200
+    });
+    map.add(pickMarker);
+  }
+
+  function setCoordinate(lng, lat) {
+    $("lng").value = round6(lng).toFixed(6);
+    $("lat").value = round6(lat).toFixed(6);
+    showPickMarker(round6(lng), round6(lat));
+    toast("已取点：" + round6(lng).toFixed(6) + ", " + round6(lat).toFixed(6));
+  }
+
+  var satelliteOn = false;
+  var satelliteLayer = null;
+  var roadNetLayer = null;
+
+  function setSatellite(on) {
+    if (!map) return;
+    satelliteOn = !!on;
+    try {
+      if (!satelliteLayer) {
+        satelliteLayer = new AMap.TileLayer.Satellite();
+        roadNetLayer = new AMap.TileLayer.RoadNet();
+      }
+      if (satelliteOn) {
+        map.setLayers([satelliteLayer, roadNetLayer]);
+        $("satelliteBtn").textContent = "查看标准图";
+      } else {
+        map.setLayers([new AMap.TileLayer(), new AMap.TileLayer.RoadNet()]);
+        $("satelliteBtn").textContent = "查看卫星图";
+      }
+      $("satelliteBtn").style.background = satelliteOn ? "rgba(31,78,121,.92)" : "rgba(255,255,255,.96)";
+      $("satelliteBtn").style.color = satelliteOn ? "#fff" : "var(--blue)";
+    } catch (e) {
+      toast("切换图层失败：" + e.message);
+    }
+  }
+
+  var mapLoaded = false;
+  function initMap() {
+    if (typeof AMap === "undefined") {
+      $("mapError").style.display = "flex";
+      return;
+    }
+    try {
+      map = new AMap.Map("map", {
+        zoom: 16,
+        center: CAMPUS_CENTER[$("campus").value] || CAMPUS_CENTER["大兴校区"],
+        viewMode: "2D",
+        resizeEnable: true
+      });
+      mapLoaded = true;
+      if (/satellite=1/.test(location.search)) {
+        setSatellite(true);
+      }
+      map.on("click", function (e) {
+        setCoordinate(e.lnglat.getLng(), e.lnglat.getLat());
+      });
+      map.on("complete", function () { renderMarkers(true); });
+      setTimeout(function () {
+        if (!mapLoaded) $("mapError").style.display = "flex";
+      }, 12000);
+      $("mapError").style.display = "none";
+    } catch (err) {
+      $("mapError").style.display = "flex";
+    }
+  }
+
+  function renderAll(fitView) {
+    renderList();
+    renderJson();
+    renderMarkers(!!fitView);
+  }
+
+  function fallbackCopy(textarea, done) {
+    textarea.focus();
+    textarea.select();
+    try {
+      if (document.execCommand("copy")) done(); else toast("复制失败，请手动选中复制");
+    } catch (e) {
+      toast("复制失败，请手动选中复制");
+    }
+  }
+
+  function copyJson() {
+    var text = jsonForDownload();
+    var textarea = $("jsonPreview");
+    var done = function () { toast("JSON 已复制"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(textarea, done); });
+    } else {
+      fallbackCopy(textarea, done);
+    }
+  }
+
+  function downloadJson() {
+    var blob = new Blob([jsonForDownload()], { type: "application/json;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "campus_points.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast("已下载 campus_points.json");
+  }
+
+  function importJson(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(String(reader.result || ""));
+        if (!Array.isArray(data)) throw new Error("根节点必须是数组");
+        var sanitized = [];
+        data.forEach(function (raw, index) {
+          if (!raw || !raw.name || !raw.campus) throw new Error("第 " + (index + 1) + " 个点位缺少 name/campus");
+          var lng = Number(raw.lng);
+          var lat = Number(raw.lat);
+          if (!isFinite(lng) || !isFinite(lat)) throw new Error("第 " + (index + 1) + " 个点位坐标无效");
+          sanitized.push({
+            id: String(raw.id || ""),
+            campus: String(raw.campus),
+            name: String(raw.name),
+            category: String(raw.category || "其他"),
+            lng: round6(lng),
+            lat: round6(lat),
+            note: String(raw.note || ""),
+            aliases: Array.isArray(raw.aliases) ? raw.aliases.map(String) : []
+          });
+        });
+        if (!confirm("导入将替换当前 " + points.length + " 个点位，确定继续？")) return;
+        points = sanitized;
+        points.forEach(function (p) {
+          if (!p.id) p.id = nextId(p.campus);
+        });
+        if (points.length && CAMPUS_CENTER[points[0].campus]) {
+          $("campus").value = points[0].campus;
+        }
+        saveStorage();
+        renderAll(true);
+        toast("已导入 " + points.length + " 个点位");
+      } catch (e) {
+        toast("导入失败：" + e.message);
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  function bindEvents() {
+    $("saveBtn").addEventListener("click", savePoint);
+    $("satelliteBtn").addEventListener("click", function () { setSatellite(!satelliteOn); });
+    $("cancelEditBtn").addEventListener("click", clearForm);
+    $("pickHintBtn").addEventListener("click", function () {
+      toast("点击右侧地图任意位置即可取点，坐标会填入左侧");
+    });
+    $("copyBtn").addEventListener("click", copyJson);
+    $("downloadBtn").addEventListener("click", downloadJson);
+    $("importBtn").addEventListener("click", function () { $("importFile").click(); });
+    $("importFile").addEventListener("change", function (e) {
+      var file = e.target.files && e.target.files[0];
+      if (file) importJson(file);
+      e.target.value = "";
+    });
+    $("clearBtn").addEventListener("click", function () {
+      if (!points.length) { toast("已经是空的了"); return; }
+      if (!confirm("清空全部 " + points.length + " 个点位？此操作不可撤销。")) return;
+      points = [];
+      saveStorage();
+      clearForm();
+      renderAll();
+      toast("已清空");
+    });
+    $("filterCampus").addEventListener("change", function () {
+      renderList();
+      renderMarkers(true);
+    });
+    $("campus").addEventListener("change", function () {
+      var center = CAMPUS_CENTER[$("campus").value];
+      if (map && center) map.setZoomAndCenter(16, center);
+      renderMarkers(false);
+    });
+    $("listWrap").addEventListener("click", function (e) {
+      var edit = e.target.getAttribute("data-edit");
+      if (edit) { startEdit(edit); return; }
+      var del = e.target.getAttribute("data-del");
+      if (del) { removePoint(del); }
+    });
+  }
+
+  function loadSdk() {
+    var script = document.createElement("script");
+    script.src = "https://webapi.amap.com/maps?v=1.4.15&key=6fde5a876ab0dbcd0a5b58ed49c8e7ab";
+    script.onload = initMap;
+    script.onerror = function () { $("mapError").style.display = "flex"; };
+    document.head.appendChild(script);
+  }
+
+  function boot() {
+    points = loadStorage();
+    if (points.length && CAMPUS_CENTER[points[0].campus]) {
+      $("campus").value = points[0].campus;
+    }
+    bindEvents();
+    clearForm();
+    renderAll(false);
+    loadSdk();
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
