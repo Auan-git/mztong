@@ -8,6 +8,7 @@ import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.data.schedule.CourseMerge
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import com.ahu.ahutong.data.schedule.TimetableProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -99,6 +100,43 @@ object ChaoxingScheduleRepository {
                 Result.failure(t)
             }
         }
+
+    /** 读取评教任务列表（只读）。 */
+    suspend fun fetchEvaluations(): Result<ChaoxingEvaluations> = withContext(Dispatchers.IO) {
+        runEvaluationCall { it.fetchEvaluations() }
+    }
+
+    /** 读取一份评教问卷（只读）。 */
+    suspend fun fetchEvaluationQuestionnaire(
+        task: ChaoxingEvaluationTask,
+    ): Result<ChaoxingEvaluationQuestionnaire> = withContext(Dispatchers.IO) {
+        runEvaluationCall { it.fetchEvaluationQuestionnaire(task) }
+    }
+
+    private suspend fun <T> runEvaluationCall(
+        block: suspend (ChaoxingClient) -> T,
+    ): Result<T> {
+        return try {
+            val client = client()
+            if (cachedSession == null && !client.hasSessionCookies()) {
+                loginWithCachedCredential(client)
+            }
+            val result = try {
+                block(client)
+            } catch (e: ChaoxingException) {
+                if (e.kind != ChaoxingErrorKind.SESSION_EXPIRED) throw e
+                Log.i(TAG, "Evaluation session expired, re-login with cached credential")
+                loginWithCachedCredential(client)
+                block(client)
+            }
+            Result.success(result)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            Log.w(TAG, "evaluation request failed: ${t.message}")
+            Result.failure(t)
+        }
+    }
 
     /** 拉取下学期课表（用于课表页「预览下学期」）。 */
     suspend fun fetchNextCourses(): Result<List<Course>> {

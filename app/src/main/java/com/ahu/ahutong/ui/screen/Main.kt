@@ -241,7 +241,7 @@ fun Main(
                 Exam()
             }
             animatedComposable("evaluation") {
-                Evaluation()
+                Evaluation(onBack = { navController.popBackStack() })
             }
             animatedComposable("free_classroom") {
                 FreeClassroom()

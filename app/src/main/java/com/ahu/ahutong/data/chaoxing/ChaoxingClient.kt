@@ -5,6 +5,7 @@ import android.util.Log
 import com.ahu.ahutong.data.SchoolConfig
 import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -18,6 +19,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.lang.reflect.Type
 import java.security.KeyFactory
 import java.security.spec.X509EncodedKeySpec
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import javax.crypto.Cipher
 
@@ -221,6 +223,159 @@ class ChaoxingClient(
             currentWeek = ChaoxingParsing.currentWeek(timeConfig),
             weeks = weeks,
         )
+    }
+
+    // ------------------------------------------------------------------ 评教
+
+    /**
+     * 读取当前账号的评教任务列表（包含每项状态，不读取问卷、不提交）。
+     *
+     * 对齐 `chaoxing-schedule/evaluations.mjs`：先检查教师排名流程 → 进评教列表页取
+     * queryFields → 分页调用 customAjaxList，并校验总数/分页/任务唯一键。
+     */
+    suspend fun fetchEvaluations(): ChaoxingEvaluations = withContext(Dispatchers.IO) {
+        val rankingBody = getJson(EVALUATION_RANKING_STATUS_PATH, EVALUATION_USER_AGENT)
+        val ranking = runCatching {
+            JsonParser.parseString(rankingBody).asJsonPrimitive
+                .takeIf { it.isBoolean }?.asBoolean
+        }.getOrNull()
+        if (ranking == true) {
+            throw ChaoxingException(
+                ChaoxingErrorKind.SCHEMA_CHANGED,
+                "官网要求先进入教师排名流程，该分支暂未适配",
+            )
+        }
+        if (ranking != false) {
+            throw ChaoxingException(
+                ChaoxingErrorKind.SESSION_EXPIRED,
+                "评教入口未返回预期状态，登录可能已过期",
+            )
+        }
+
+        val pageHtml = get(EVALUATIONS_PAGE_PATH, EVALUATION_USER_AGENT)
+        if (ChaoxingParsing.containsLoginForm(pageHtml) || looksLikeSessionExpired(pageHtml)) {
+            throw sessionExpired()
+        }
+        val fields = ChaoxingParsing.parseHiddenInputs(pageHtml)[EVALUATION_QUERY_FIELDS_KEY]
+            ?.takeIf { it.isNotBlank() }
+        val hasListApi = pageHtml.contains(EVALUATIONS_LIST_API_PATH)
+        if (fields == null || !hasListApi) {
+            throw ChaoxingException(
+                ChaoxingErrorKind.SCHEMA_CHANGED,
+                "无法读取评教任务，教务页面可能已更新，请稍后重试",
+            )
+        }
+        // 与官网一致：读一次评教设置/整体标记；读取失败不阻断任务列表。
+        runCatching { getJson(EVALUATION_SETTINGS_PATH, EVALUATION_USER_AGENT) }
+        runCatching { getJson(EVALUATION_COMPLETION_PATH, EVALUATION_USER_AGENT) }
+
+        val tasks = mutableListOf<ChaoxingEvaluationTask>()
+        val seen = mutableSetOf<String>()
+        var expectedTotal = -1
+        var expectedRows = -1
+        var expectedPages = -1
+        var pageNumber = 1
+        while (pageNumber <= MAX_EVALUATION_PAGES) {
+            val body = postForm(
+                path = EVALUATIONS_LIST_API_PATH,
+                form = linkedMapOf(
+                    "page.pn" to pageNumber.toString(),
+                    "page.size" to EVALUATION_PAGE_SIZE.toString(),
+                    "sort" to "id",
+                    "order" to "asc",
+                    "jsname" to "",
+                    "kcbh" to "",
+                    "queryFields" to fields,
+                ),
+                ajax = true,
+                userAgent = EVALUATION_USER_AGENT,
+            ).body
+            if (ChaoxingParsing.containsLoginForm(body) || looksLikeSessionExpired(body)) {
+                throw sessionExpired()
+            }
+            val response = runCatching {
+                gson.fromJson(body, ChaoxingEvaluationListResponse::class.java)
+            }.getOrNull() ?: throw ChaoxingException(
+                ChaoxingErrorKind.SCHEMA_CHANGED,
+                "评教接口返回了无法解析的数据",
+            )
+            if (response.ret != 0) {
+                throw ChaoxingException(
+                    ChaoxingErrorKind.SCHEMA_CHANGED,
+                    response.msg?.takeIf { it.isNotBlank() } ?: "评教查询被拒绝",
+                )
+            }
+            if (response.page != pageNumber || response.rows <= 0 || response.total < 0 ||
+                response.totalPages < 0
+            ) {
+                throw ChaoxingException(ChaoxingErrorKind.SCHEMA_CHANGED, "评教接口分页字段无效")
+            }
+            if (response.total > 0 && response.totalPages != (response.total + response.rows - 1) / response.rows) {
+                throw ChaoxingException(ChaoxingErrorKind.SCHEMA_CHANGED, "评教接口分页数量不一致")
+            }
+            if (response.total == 0 && response.totalPages > 1) {
+                throw ChaoxingException(ChaoxingErrorKind.SCHEMA_CHANGED, "评教接口分页数量不一致")
+            }
+            if (pageNumber > maxOf(1, response.totalPages)) {
+                throw ChaoxingException(ChaoxingErrorKind.SCHEMA_CHANGED, "评教接口页码越界")
+            }
+            if (expectedTotal < 0) {
+                expectedTotal = response.total
+                expectedRows = response.rows
+                expectedPages = response.totalPages
+            } else if (response.total != expectedTotal ||
+                response.rows != expectedRows ||
+                response.totalPages != expectedPages
+            ) {
+                throw ChaoxingException(ChaoxingErrorKind.SCHEMA_CHANGED, "读取期间评教分页发生变化")
+            }
+            if (response.totalPages > MAX_EVALUATION_PAGES) {
+                throw ChaoxingException(ChaoxingErrorKind.SCHEMA_CHANGED, "评教页数超过读取上限")
+            }
+            val results = response.results ?: throw ChaoxingException(
+                ChaoxingErrorKind.SCHEMA_CHANGED,
+                "评教接口缺少任务列表",
+            )
+            if (results.size > response.rows) {
+                throw ChaoxingException(ChaoxingErrorKind.SCHEMA_CHANGED, "评教接口单页条数异常")
+            }
+            results.forEach { row ->
+                val task = ChaoxingEvaluationParsing.normalizeTask(row)
+                if (!seen.add(task.taskKey)) {
+                    throw ChaoxingException(ChaoxingErrorKind.SCHEMA_CHANGED, "同一评教任务重复出现")
+                }
+                tasks += task
+            }
+            if (pageNumber >= maxOf(1, response.totalPages)) break
+            if (results.isEmpty()) {
+                throw ChaoxingException(ChaoxingErrorKind.SCHEMA_CHANGED, "评教接口提前返回空页")
+            }
+            pageNumber++
+        }
+        if (tasks.size != expectedTotal) {
+            throw ChaoxingException(
+                ChaoxingErrorKind.SCHEMA_CHANGED,
+                "评教任务条数与服务器总数不一致（${tasks.size}/$expectedTotal）",
+            )
+        }
+        ChaoxingEvaluations(tasks)
+    }
+
+    /** 读取一份评教问卷（只读；已提交任务走 showDetail）。 */
+    suspend fun fetchEvaluationQuestionnaire(
+        task: ChaoxingEvaluationTask,
+    ): ChaoxingEvaluationQuestionnaire = withContext(Dispatchers.IO) {
+        val suffix = if (task.statusCode == "2") "showDetail" else "edit"
+        val path = buildString {
+            append(EVALUATIONS_PAGE_PATH)
+            append('/').append(URLEncoder.encode(task.templateId, "UTF-8"))
+            append('/').append(URLEncoder.encode(task.teachingClassId, "UTF-8"))
+            append('/').append(URLEncoder.encode(task.teacherId, "UTF-8"))
+            append('/').append(suffix)
+        }
+        val html = get(path, EVALUATION_USER_AGENT)
+        if (looksLikeSessionExpired(html)) throw sessionExpired()
+        ChaoxingEvaluationParsing.parseQuestionnaire(html, task)
     }
 
     // ------------------------------------------------------------------ 成绩查询
@@ -442,10 +597,10 @@ class ChaoxingClient(
         return ChaoxingParsing.text(match.value)
     }
 
-    private fun get(pathOrUrl: String): String = execute(
+    private fun get(pathOrUrl: String, userAgent: String = USER_AGENT): String = execute(
         Request.Builder()
             .url(pathOrUrl.toAbsoluteUrl())
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", userAgent)
             .header("Accept", "text/html,application/xhtml+xml")
             .header("Referer", SchoolConfig.CHAOXING_BASE_URL + "/admin")
             .get()
@@ -453,10 +608,10 @@ class ChaoxingClient(
     ).body
 
     /** JSON 接口必须带 X-Requested-With，否则超星返回 HTTP 500（实测）。 */
-    private fun getJson(pathOrUrl: String): String = execute(
+    private fun getJson(pathOrUrl: String, userAgent: String = USER_AGENT): String = execute(
         Request.Builder()
             .url(pathOrUrl.toAbsoluteUrl())
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", userAgent)
             .header("Accept", "application/json")
             .header("X-Requested-With", "XMLHttpRequest")
             .header("Referer", SchoolConfig.CHAOXING_BASE_URL + "/admin")
@@ -464,10 +619,15 @@ class ChaoxingClient(
             .build(),
     ).body
 
-    private fun postForm(path: String, form: Map<String, String>, ajax: Boolean = false): Page = execute(
+    private fun postForm(
+        path: String,
+        form: Map<String, String>,
+        ajax: Boolean = false,
+        userAgent: String = USER_AGENT,
+    ): Page = execute(
         Request.Builder()
             .url(path.toAbsoluteUrl())
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", userAgent)
             .header("Accept", if (ajax) "application/json" else "text/html,application/xhtml+xml")
             .header("Referer", SchoolConfig.CHAOXING_BASE_URL + "/admin")
             .header("Origin", SchoolConfig.CHAOXING_BASE_URL)
@@ -529,6 +689,19 @@ class ChaoxingClient(
 
         /** 防御性上限：正常一个学生不会超过 100 页成绩。 */
         const val MAX_GRADE_PAGES = 100
+
+        /** 评教任务列表页。 */
+        const val EVALUATIONS_PAGE_PATH = "/admin/xsd/pj/xspj"
+        const val EVALUATIONS_LIST_API_PATH = "/admin/xsd/pj/xspj/customAjaxList?gridtype=jqgrid"
+        const val EVALUATION_RANKING_STATUS_PATH = "/admin/xsd/pj/xspj/checkJspmStatus"
+        const val EVALUATION_COMPLETION_PATH = "/admin/xsd/pj/xspj/getSfywcpj"
+        const val EVALUATION_QUERY_FIELDS_KEY = "queryxsdpjkclistGridFields"
+        const val EVALUATION_PAGE_SIZE = 50
+        const val MAX_EVALUATION_PAGES = 100
+        // 手机 UA 会得到另一套移动端问卷；当前解析协议对应官网桌面页面。
+        const val EVALUATION_USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"

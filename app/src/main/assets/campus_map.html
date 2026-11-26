@@ -7,7 +7,15 @@
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #e8eef5; }
         #map { width: 100%; height: 100%; }
+        #map, #map * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
         .amap-logo, .amap-copyright { opacity: .7; }
+        .user-pin {
+            display: inline-block; max-width: 168px; padding: 4px 9px; border-radius: 999px;
+            background: #C9A227; color: #2A2408; font-size: 12px; font-weight: 600;
+            border: 1px solid #E4CF83; box-shadow: 0 2px 6px rgba(0,0,0,.18);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        }
     </style>
     <script>
         window._AMapSecurityConfig = { securityJsCode: '380f27e4262d748391a5808903b0563b' };
@@ -24,6 +32,11 @@
     window.onerror = function (msg) { bridge('地图脚本错误: ' + msg); };
     var map = null;
     var campusMarker = null;
+    var fixedPoints = [];
+    var fixedMarkers = [];
+    var userPoints = [];
+    var userMarkers = [];
+    var satelliteOn = false;
     var userMarker = null;
     var userCircle = null;
     var geocoder = null;
@@ -50,6 +63,8 @@
                 bridge('ready');
             });
             bridge('initialized');
+            loadUserPoints();
+            setupLongPress();
             AMap.plugin(['AMap.Geocoder'], function () {
                 try { geocoder = new AMap.Geocoder({ city: '全国' }); } catch (e) { geocoder = null; }
                 if (currentCampus) setCampus(currentCampus.name, currentCampus.address, currentCampus.lng, currentCampus.lat, currentCampus.geocodeAddress);
@@ -74,11 +89,199 @@
         map.setZoomAndCenter(16, pos);
     }
 
+    /**
+     * 注入固定点位（由 App 从 assets/campus_points.json 读取后调用）。
+     * 点位按校区过滤，标记只显示当前校区。
+     */
+    function setPoints(points) {
+        fixedPoints = Array.isArray(points) ? points : [];
+        renderFixedPoints();
+    }
+
+    function clearFixedMarkers() {
+        if (!map) return;
+        if (fixedMarkers.length) { map.remove(fixedMarkers); }
+        fixedMarkers = [];
+    }
+
+    function renderFixedPoints() {
+        if (!map || !currentCampus) return;
+        clearFixedMarkers();
+        var list = fixedPoints.filter(function (p) { return p && p.campus === currentCampus.name; });
+        list.forEach(function (p) {
+            var lng = Number(p.lng);
+            var lat = Number(p.lat);
+            if (!isFinite(lng) || !isFinite(lat)) return;
+            var marker = new AMap.Marker({
+                position: [lng, lat],
+                title: p.name || '点位',
+                label: { content: p.name || '点位', direction: 'top' },
+                zIndex: 120
+            });
+            marker.on('click', function () { bridge('point-click:' + p.id); });
+            map.add(marker);
+            fixedMarkers.push(marker);
+        });
+        if (fixedMarkers.length) {
+            var overlays = fixedMarkers.slice();
+            if (campusMarker) overlays.push(campusMarker);
+            map.setFitView(overlays, false, [80, 80, 80, 120]);
+        }
+        renderUserPoints();
+    }
+
+    /** 下拉菜单选中某个固定点位：缩放到该点。 */
+    function focusPoint(id) {
+        var p = fixedPoints.filter(function (item) { return item && item.id === id; })[0];
+        if (!p || !map) return;
+        map.setZoomAndCenter(18, [Number(p.lng), Number(p.lat)]);
+        bridge('focus-point:' + p.name);
+    }
+
+    function loadUserPoints() {
+        try {
+            var raw = localStorage.getItem('mztong_user_points_v1');
+            userPoints = raw ? JSON.parse(raw) : [];
+            if (!Array.isArray(userPoints)) userPoints = [];
+        } catch (e) {
+            userPoints = [];
+        }
+    }
+
+    function saveUserPoints() {
+        try {
+            localStorage.setItem('mztong_user_points_v1', JSON.stringify(userPoints));
+        } catch (e) { /* 本地存储不可用时忽略 */ }
+    }
+
+    function clearUserMarkers() {
+        if (!map) return;
+        if (userMarkers.length) { map.remove(userMarkers); }
+        userMarkers = [];
+    }
+
+    function renderUserPoints() {
+        if (!map || !currentCampus) return;
+        clearUserMarkers();
+        userPoints.filter(function (p) { return p && p.campus === currentCampus.name; }).forEach(function (p) {
+            var lng = Number(p.lng);
+            var lat = Number(p.lat);
+            if (!isFinite(lng) || !isFinite(lat)) return;
+            var el = document.createElement('div');
+            el.className = 'user-pin';
+            el.textContent = p.name || '我的标点';
+            var marker = new AMap.Marker({
+                position: [lng, lat],
+                title: p.name || '我的标点',
+                content: el,
+                offset: new AMap.Pixel(-20, -18),
+                zIndex: 160
+            });
+            var openUserPoint = function () {
+                bridge('user-point-click:' + JSON.stringify({ id: p.id, name: p.name, campus: p.campus }));
+            };
+            // 自定义 content 的 DOM 会盖住 marker 本身，必须同时监听 DOM 点击。
+            el.addEventListener('click', openUserPoint);
+            marker.on('click', openUserPoint);
+            map.add(marker);
+            userMarkers.push(marker);
+        });
+    }
+
+    /** 由 App 在长按后调用：新增一个用户标点（仅存本机 WebView）。 */
+    function addUserPoint(point) {
+        if (!point || !point.id) return;
+        var exists = userPoints.some(function (p) { return p.id === point.id; });
+        if (exists) {
+            userPoints = userPoints.map(function (p) { return p.id === point.id ? point : p; });
+        } else {
+            userPoints.push(point);
+        }
+        saveUserPoints();
+        renderUserPoints();
+        if (map) map.setZoomAndCenter(17, [Number(point.lng), Number(point.lat)]);
+        bridge('user-point-added:' + (point.name || ''));
+    }
+
+    function removeUserPoint(id) {
+        userPoints = userPoints.filter(function (p) { return p.id !== id; });
+        saveUserPoints();
+        renderUserPoints();
+        bridge('user-point-removed');
+    }
+
+    var satelliteLayer = null;
+    var roadNetLayer = null;
+
+    function setSatellite(on) {
+        if (!map) return;
+        satelliteOn = !!on;
+        try {
+            if (!satelliteLayer) {
+                satelliteLayer = new AMap.TileLayer.Satellite();
+                roadNetLayer = new AMap.TileLayer.RoadNet();
+            }
+            map.setLayers(satelliteOn
+                ? [satelliteLayer, roadNetLayer]
+                : [new AMap.TileLayer(), new AMap.TileLayer.RoadNet()]);
+            bridge('satellite:' + (satelliteOn ? 'on' : 'off'));
+        } catch (e) {
+            bridge('图层切换失败: ' + e.message);
+        }
+    }
+
+    function toggleSatellite() {
+        setSatellite(!satelliteOn);
+    }
+
+    /** 长按地图取点：触摸 650ms 内移动不超过 10px 才算长按。 */
+    function setupLongPress() {
+        var el = document.getElementById('map');
+        if (!el || el.dataset.longPressBound === '1') return;
+        el.dataset.longPressBound = '1';
+        var timer = null;
+        var start = null;
+        el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+        el.addEventListener('touchstart', function (e) {
+            if (!e.touches || e.touches.length !== 1) return;
+            var touch = e.touches[0];
+            start = { x: touch.clientX, y: touch.clientY };
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(function () {
+                if (!start || !map) return;
+                var rect = el.getBoundingClientRect();
+                var pixel = new AMap.Pixel(start.x - rect.left, start.y - rect.top);
+                var lnglat = map.containerToLngLat(pixel);
+                if (lnglat) {
+                    bridge('longtap:' + lnglat.getLng() + ',' + lnglat.getLat());
+                }
+                start = null;
+            }, 650);
+        }, { passive: true });
+        el.addEventListener('touchmove', function (e) {
+            if (!start) return;
+            var touch = e.touches[0];
+            if (Math.abs(touch.clientX - start.x) > 10 || Math.abs(touch.clientY - start.y) > 10) {
+                if (timer) clearTimeout(timer);
+                start = null;
+            }
+        }, { passive: true });
+        el.addEventListener('touchend', function () {
+            if (timer) clearTimeout(timer);
+            start = null;
+        }, { passive: true });
+        el.addEventListener('touchcancel', function () {
+            if (timer) clearTimeout(timer);
+            start = null;
+        }, { passive: true });
+    }
+
     function setCampus(name, address, fallbackLng, fallbackLat, geocodeAddress) {
         currentCampus = { name: name, address: address, lng: fallbackLng, lat: fallbackLat, geocodeAddress: geocodeAddress !== false };
         var request = ++campusRequest;
         if (!ensureMap()) return;
         placeCampus(fallbackLng, fallbackLat, name);
+        renderFixedPoints();
         // 已核验校园 POI 的坐标不再交给地址解析，避免被道路中心点覆盖。
         if (!currentCampus.geocodeAddress) {
             bridge('已定位 ' + name);
@@ -90,9 +293,11 @@
                 if (status === 'complete' && result && result.geocodes && result.geocodes.length) {
                     var loc = result.geocodes[0].location;
                     placeCampus(loc.lng, loc.lat, name);
+                    renderFixedPoints();
                     bridge('已定位 ' + name);
                 } else {
                     placeCampus(fallbackLng, fallbackLat, name);
+                    renderFixedPoints();
                     bridge('已定位 ' + name + '（使用预设坐标）');
                 }
             });

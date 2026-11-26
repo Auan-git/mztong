@@ -1,459 +1,84 @@
 package com.ahu.ahutong.ui.screen.main
 
-import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ahu.ahutong.data.model.EvalQuestion
-import com.ahu.ahutong.data.model.EvalTask
-import com.ahu.ahutong.data.model.EvalTeacher
-import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
-import com.ahu.ahutong.ui.state.EvaluationViewModel
-import com.kyant.monet.a1
-import com.kyant.monet.n1
-import com.ahu.ahutong.ui.theme.withNight
+import com.ahu.ahutong.data.chaoxing.ChaoxingEvaluationQuestion
+import com.ahu.ahutong.data.chaoxing.ChaoxingEvaluationQuestionnaire
+import com.ahu.ahutong.data.chaoxing.ChaoxingEvaluationTask
+import com.ahu.ahutong.ui.state.ChaoxingEvaluationViewModel
 
+/**
+ * 「小工具 → 教评」：读取超星教务的评教任务与问卷（只读）。
+ *
+ * 官方保存/提交协议仅从网页源码确认、未做在线验证，因此当前版本不提供提交按钮，
+ * 避免误把不完整的评价提交到正式教务系统。
+ */
 @Composable
-fun Evaluation(
-    viewModel: EvaluationViewModel = viewModel()
-) {
-    LaunchedEffect(Unit) {
-        viewModel.loadSemesters()
+fun Evaluation(onBack: () -> Unit, viewModel: ChaoxingEvaluationViewModel = viewModel()) {
+    LaunchedEffect(Unit) { viewModel.loadTasks() }
+    val questionnaire by viewModel.questionnaire.collectAsState()
+    val isQuestionnaireLoading by viewModel.isQuestionnaireLoading.collectAsState()
+    BackHandler(enabled = questionnaire != null || isQuestionnaireLoading) {
+        viewModel.closeQuestionnaire()
     }
-
-    val context = LocalContext.current
-    val errorMessage by viewModel.errorMessage.collectAsState()
-    val presetActionMessage by viewModel.presetActionMessage.collectAsState()
-    val currentTask by viewModel.currentTask.collectAsState()
-
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            viewModel.errorMessage.value = null
-        }
-    }
-
-    LaunchedEffect(presetActionMessage) {
-        presetActionMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            viewModel.presetActionMessage.value = null
-        }
-    }
-
-    if (currentTask != null) {
-        EvaluationFormScreen(viewModel)
+    val current = questionnaire
+    if (current != null) {
+        EvaluationQuestionnaireScreen(
+            viewModel = viewModel,
+            questionnaire = current,
+        )
     } else {
-        EvaluationListScreen(viewModel)
+        EvaluationListScreen(viewModel, onBack)
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EvaluationListScreen(viewModel: EvaluationViewModel) {
-    val semesters by viewModel.semesters.collectAsState()
-    val selectedSemesterId by viewModel.selectedSemesterId.collectAsState()
-    val taskItems by viewModel.taskItems.collectAsState()
+private fun EvaluationListScreen(viewModel: ChaoxingEvaluationViewModel, onBack: () -> Unit) {
+    val tasks by viewModel.tasks.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val isSubmitting by viewModel.isSubmitting.collectAsState()
-    val isBulkSubmitting by viewModel.isBulkSubmitting.collectAsState()
+    val isQuestionnaireLoading by viewModel.isQuestionnaireLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val questionnaireError by viewModel.questionnaireError.collectAsState()
 
-    var semesterExpanded by remember { mutableStateOf(false) }
-    var presetDialogShown by remember { mutableStateOf(false) }
-    var confirmBulkSubmitShown by remember { mutableStateOf(false) }
-    val presetTargetCount = taskItems.sumOf { item ->
-        item.taskList.sumOf { task ->
-            if (!task.timeStatus) {
-                0
-            } else {
-                task.teachers.count { teacher -> teacher.status == "TO_REVIEW" }
-            }
-        }
-    }
-    val hasPresetTargets = presetTargetCount > 0
-
-    if (presetDialogShown) {
-        EvaluationPresetDialog(
-            viewModel = viewModel,
-            onDismiss = { presetDialogShown = false }
-        )
-    }
-    if (confirmBulkSubmitShown) {
-        AlertDialog(
-            onDismissRequest = { confirmBulkSubmitShown = false },
-            containerColor = 100.n1 withNight 20.n1,
-            titleContentColor = 0.n1 withNight 100.n1,
-            textContentColor = 30.n1 withNight 90.n1,
-            title = { Text("确认批量评教") },
-            text = {
-                Text(
-                    text = "将按当前预设提交 $presetTargetCount 项评教，提交后通常不能撤回。",
-                    color = 0.n1 withNight 100.n1
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmBulkSubmitShown = false
-                        viewModel.submitAllWithPreset()
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = 40.a1 withNight 80.a1
-                    )
-                ) {
-                    Text("确认提交")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { confirmBulkSubmitShown = false },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = 40.a1 withNight 80.a1
-                    )
-                ) {
-                    Text("取消")
-                }
-            }
-        )
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding()
-            .padding(bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 24.dp, top = 32.dp, end = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "教评",
-                modifier = Modifier.weight(1f),
-                color = 0.n1 withNight 100.n1,
-                style = MaterialTheme.typography.headlineMedium
-            )
-            Box {
-                TextButton(onClick = { semesterExpanded = true }) {
-                    val selected = semesters.firstOrNull { it.id == selectedSemesterId }
-                    Text(
-                        text = selected?.nameZh ?: "选择学期",
-                        color = 40.a1 withNight 80.a1
-                    )
-                }
-                DropdownMenu(
-                    expanded = semesterExpanded,
-                    onDismissRequest = { semesterExpanded = false },
-                    containerColor = 100.n1 withNight 20.n1
-                ) {
-                    semesters.forEach { semester ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = semester.nameZh,
-                                    color = 0.n1 withNight 100.n1
-                                )
-                            },
-                            onClick = {
-                                viewModel.selectedSemesterId.value = semester.id
-                                viewModel.loadEvaluationList()
-                                semesterExpanded = false
-                            },
-                            leadingIcon = if (semester.id == selectedSemesterId) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = null,
-                                        tint = 40.a1 withNight 80.a1
-                                    )
-                                }
-                            } else null
-                        )
-                    }
-                }
-            }
-            IconButton(onClick = { presetDialogShown = true }) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = "评教预设",
-                    tint = 0.n1 withNight 100.n1
-                )
-            }
-        }
-
-        OutlinedButton(
-            onClick = { confirmBulkSubmitShown = true },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            enabled = hasPresetTargets && !isLoading && !isSubmitting && !isBulkSubmitting,
-            shape = SmoothRoundedCornerShape(12.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = 40.a1 withNight 80.a1,
-                disabledContentColor = 60.n1 withNight 50.n1
-            )
-        ) {
-            if (isBulkSubmitting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = 40.a1 withNight 80.a1
-                )
-            } else {
-                Text("按预设完成全部")
-            }
-        }
-
-        if (isLoading && taskItems.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        }
-
-        taskItems.forEach { item ->
-            item.taskList.forEach { task ->
-                task.teachers.forEach { teacher ->
-                    EvaluationCard(
-                        task = task,
-                        teacher = teacher,
-                        courseName = item.courseName,
-                        lessonName = item.lessonNameZh,
-                        onClick = {
-                            viewModel.enterEvaluation(
-                                task = task,
-                                teacher = teacher,
-                                courseName = item.courseName,
-                                lessonName = item.lessonNameZh
-                            )
-                        },
-                        onPresetClick = {
-                            viewModel.quickSubmitWithPreset(
-                                task = task,
-                                teacher = teacher,
-                                courseName = item.courseName,
-                                lessonName = item.lessonNameZh
-                            )
-                        },
-                        presetEnabled = !isSubmitting && !isBulkSubmitting
-                    )
-                }
-            }
-        }
-
-        if (!isLoading && taskItems.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "暂无待评教课程",
-                    color = 40.n1 withNight 80.n1,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun EvaluationCard(
-    task: EvalTask,
-    teacher: EvalTeacher,
-    courseName: String,
-    lessonName: String,
-    onClick: () -> Unit,
-    onPresetClick: () -> Unit,
-    presetEnabled: Boolean
-) {
-    val reviewed = teacher.status != "TO_REVIEW"
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(SmoothRoundedCornerShape(16.dp))
-            .clickable(enabled = !reviewed && task.timeStatus, onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = 100.n1 withNight 20.n1
-        ),
-        shape = SmoothRoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = courseName,
-                    modifier = Modifier.weight(1f),
-                    color = 0.n1 withNight 100.n1,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                val (statusText, statusColor) = when {
-                    reviewed -> "已评" to (50.n1 withNight 70.n1)
-                    !task.timeStatus -> "未开始" to Color(0xFF2E7D32)
-                    else -> "待评" to (90.a1 withNight 90.a1)
-                }
-                Text(
-                    text = statusText,
-                    color = statusColor,
-                    fontWeight = FontWeight.Medium,
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Outlined.Person,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = 50.n1 withNight 70.n1
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = teacher.teacherName,
-                    color = 30.n1 withNight 90.n1,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-
-            Text(
-                text = "$lessonName · ${task.evaluationQuestionnaireName}",
-                color = 50.n1 withNight 80.n1,
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                OutlinedButton(
-                    onClick = onPresetClick,
-                    enabled = !reviewed && task.timeStatus && presetEnabled,
-                    shape = SmoothRoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = 40.a1 withNight 80.a1,
-                        disabledContentColor = 60.n1 withNight 50.n1
-                    )
-                ) {
-                    Text(
-                        text = "按预设完成",
-                        color = 40.a1 withNight 80.a1,
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EvaluationFormScreen(viewModel: EvaluationViewModel) {
-    val questions by viewModel.questions.collectAsState()
-    val currentTeacher by viewModel.currentTeacher.collectAsState()
-    val currentCourseName by viewModel.currentCourseName.collectAsState()
-    val currentLessonName by viewModel.currentLessonName.collectAsState()
-    val answers by viewModel.answers.collectAsState()
-    val textAnswers by viewModel.textAnswers.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val isSubmitting by viewModel.isSubmitting.collectAsState()
-    val submitSuccess by viewModel.submitSuccess.collectAsState()
-    val submitMessage by viewModel.submitMessage.collectAsState()
-
-    val context = LocalContext.current
-    var presetDialogShown by remember { mutableStateOf(false) }
-
-    if (presetDialogShown) {
-        EvaluationPresetDialog(
-            viewModel = viewModel,
-            onDismiss = { presetDialogShown = false }
-        )
-    }
-
-    LaunchedEffect(submitMessage) {
-        submitMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            if (submitSuccess) {
-                viewModel.backToList()
-            } else {
-                viewModel.submitMessage.value = null
-            }
-        }
-    }
+    val notEvaluated = tasks.count { it.statusCode == "0" }
+    val saved = tasks.count { it.statusCode == "1" }
+    val submitted = tasks.count { it.statusCode == "2" }
 
     Column(
         modifier = Modifier
@@ -464,377 +89,263 @@ private fun EvaluationFormScreen(viewModel: EvaluationViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { viewModel.backToList() }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = 0.n1 withNight 100.n1
-                )
+            IconButton(onClick = {
+                viewModel.closeQuestionnaire()
+                onBack()
+            }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = currentCourseName,
-                    color = 0.n1 withNight 100.n1,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "${currentTeacher?.teacherName.orEmpty()} · $currentLessonName",
-                    color = 30.n1 withNight 90.n1,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            IconButton(onClick = { presetDialogShown = true }) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = "评教预设",
-                    tint = 0.n1 withNight 100.n1
-                )
+            Text(
+                text = "评教",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            IconButton(
+                onClick = { viewModel.loadTasks(force = true) },
+                enabled = !isLoading && !isQuestionnaireLoading,
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = "刷新")
             }
         }
 
-        HorizontalDivider(color = 90.n1 withNight 30.n1, thickness = 0.5.dp)
+        if (tasks.isNotEmpty()) {
+            Text(
+                text = "共 ${tasks.size} 项 · 未评 $notEvaluated · 已保存 $saved · 已提交 $submitted",
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (isQuestionnaireLoading || (isLoading && tasks.isNotEmpty())) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
+            )
+        }
+        if (errorMessage != null && tasks.isNotEmpty()) {
+            Text(
+                text = "刷新失败，当前显示上次结果：${errorMessage.orEmpty()}",
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (questionnaireError != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = questionnaireError.orEmpty(),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                TextButton(onClick = { viewModel.clearQuestionnaireError() }) { Text("知道了") }
+            }
+        }
 
-        if (isLoading && questions.isEmpty()) {
-            Box(
+        when {
+            isLoading && tasks.isEmpty() -> CenterLoading()
+            errorMessage != null && tasks.isEmpty() -> CenterError(
+                message = errorMessage.orEmpty(),
+                onRetry = { viewModel.loadTasks(force = true) },
+            )
+            tasks.isEmpty() -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "暂无评教任务",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            else -> LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentAlignment = Alignment.Center
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 4.dp,
+                    bottom = 12.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { viewModel.applyPresetToCurrent() },
-                        modifier = Modifier.weight(1f),
-                        enabled = questions.isNotEmpty() && !isSubmitting,
-                        shape = SmoothRoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = 40.a1 withNight 80.a1,
-                            disabledContentColor = 60.n1 withNight 50.n1
-                        )
-                    ) {
-                        Text("套用预设")
-                    }
-                    Button(
-                        onClick = { viewModel.submitCurrentWithPreset() },
-                        modifier = Modifier.weight(1f),
-                        enabled = questions.isNotEmpty() && !isSubmitting,
-                        shape = SmoothRoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = 90.a1 withNight 30.a1,
-                            contentColor = 100.n1 withNight 100.n1,
-                            disabledContainerColor = 80.n1 withNight 25.n1,
-                            disabledContentColor = 50.n1 withNight 60.n1
-                        )
-                    ) {
-                        Text("预设提交")
-                    }
-                }
-                questions.forEach { question ->
-                    QuestionCard(
-                        question = question,
-                        selectedOptionId = answers[question.attribute.id.toString()],
-                        textAnswer = textAnswers[question.attribute.id.toString()].orEmpty(),
-                        onSelect = { optionId ->
-                            viewModel.setAnswer(question.attribute.id.toString(), optionId)
-                        },
-                        onTextChange = { text ->
-                            viewModel.setTextAnswer(question.attribute.id.toString(), text)
-                        }
+                items(tasks, key = { it.taskKey }) { task ->
+                    EvaluationTaskCard(
+                        task = task,
+                        enabled = !isQuestionnaireLoading && !isLoading,
+                        onOpen = { viewModel.openQuestionnaire(task) },
                     )
                 }
-                Spacer(Modifier.height(80.dp))
+                item {
+                    Text(
+                        text = "本页可查看评教任务与问卷。填写和提交请前往教务系统。",
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EvaluationTaskCard(
+    task: ChaoxingEvaluationTask,
+    enabled: Boolean,
+    onOpen: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = task.courseName,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                EvaluationStatusBadge(task.status, task.statusCode)
+            }
+            Text(
+                text = task.teacherName,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val detail = listOfNotNull(
+                task.templateName.takeIf { it.isNotBlank() },
+                task.semester.takeIf { it.isNotBlank() },
+                task.courseCode.takeIf { it.isNotBlank() },
+            ).joinToString(" · ")
+            if (detail.isNotBlank()) {
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = onOpen, enabled = enabled) {
+                    Text(if (task.statusCode == "2") "查看详情" else "查看问卷")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EvaluationStatusBadge(status: String, statusCode: String) {
+    val colors = MaterialTheme.colorScheme
+    val (container, content) = when (statusCode) {
+        "2" -> colors.primaryContainer to colors.onPrimaryContainer
+        "1" -> colors.secondaryContainer to colors.onSecondaryContainer
+        else -> colors.tertiaryContainer to colors.onTertiaryContainer
+    }
+    Surface(
+        color = container,
+        shape = RoundedCornerShape(999.dp),
+    ) {
+        Text(
+            text = status,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = content,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun EvaluationQuestionnaireScreen(
+    viewModel: ChaoxingEvaluationViewModel,
+    questionnaire: ChaoxingEvaluationQuestionnaire,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .systemBarsPadding()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { viewModel.closeQuestionnaire() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = questionnaire.courseName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "${questionnaire.teacherName} · ${questionnaire.status}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = 100.n1 withNight 20.n1,
-            shadowElevation = 4.dp
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            color = MaterialTheme.colorScheme.tertiaryContainer,
+            shape = RoundedCornerShape(12.dp),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .navigationBarsPadding(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { viewModel.backToList() },
-                    modifier = Modifier.weight(1f),
-                    shape = SmoothRoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = 40.a1 withNight 80.a1,
-                        disabledContentColor = 60.n1 withNight 50.n1
-                    )
-                ) {
-                    Text("取消")
-                }
-                Button(
-                    onClick = { viewModel.submit(false) },
-                    modifier = Modifier.weight(1f),
-                    enabled = !isSubmitting && questions.isNotEmpty(),
-                    shape = SmoothRoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = 90.a1 withNight 30.a1,
-                        contentColor = 100.n1 withNight 100.n1,
-                        disabledContainerColor = 80.n1 withNight 25.n1,
-                        disabledContentColor = 50.n1 withNight 60.n1
-                    )
-                ) {
-                    if (isSubmitting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White
-                        )
-                    } else {
-                        Text("提交")
-                    }
-                }
-                Button(
-                    onClick = { viewModel.submit(true) },
-                    modifier = Modifier.weight(1f),
-                    enabled = !isSubmitting && questions.isNotEmpty(),
-                    shape = SmoothRoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = 90.a1 withNight 30.n1,
-                        contentColor = 100.n1 withNight 100.n1,
-                        disabledContainerColor = 80.n1 withNight 25.n1,
-                        disabledContentColor = 50.n1 withNight 60.n1
-                    )
-                ) {
-                    Text("匿名")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EvaluationPresetDialog(
-    viewModel: EvaluationViewModel,
-    onDismiss: () -> Unit
-) {
-    val preset by viewModel.preset.collectAsState()
-    val presetQuestions by viewModel.presetQuestions.collectAsState()
-    val isPresetLoading by viewModel.isPresetLoading.collectAsState()
-    val taskItems by viewModel.taskItems.collectAsState()
-    var radioIndexes by remember(preset, presetQuestions) {
-        mutableStateOf(viewModel.presetRadioOptionIndexesFor(presetQuestions, preset))
-    }
-    var presetTextAnswers by remember(preset, presetQuestions) {
-        mutableStateOf(viewModel.presetTextAnswersFor(presetQuestions, preset))
-    }
-    var anonymous by remember(preset) {
-        mutableStateOf(preset.anonymous)
-    }
-
-    LaunchedEffect(taskItems, presetQuestions.isEmpty()) {
-        viewModel.loadPresetQuestions()
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = 100.n1 withNight 20.n1,
-        titleContentColor = 0.n1 withNight 100.n1,
-        textContentColor = 30.n1 withNight 90.n1,
-        title = {
-            Text("评教预设")
-        },
-        text = {
-            Column(
-                modifier = Modifier.heightIn(max = 460.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "匿名提交",
-                        color = 0.n1 withNight 100.n1,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Switch(
-                        checked = anonymous,
-                        onCheckedChange = { anonymous = it }
-                    )
-                }
-
-                when {
-                    isPresetLoading -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
-                        }
-                    }
-                    presetQuestions.isEmpty() -> {
-                        Text(
-                            text = "暂无可编辑的评教题目",
-                            color = 50.n1 withNight 80.n1,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    else -> {
-                        Column(
-                            modifier = Modifier.verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            presetQuestions.forEach { question ->
-                                val questionId = question.attribute.id.toString()
-                                PresetQuestionEditor(
-                                    question = question,
-                                    selectedOptionIndex = radioIndexes[questionId],
-                                    textAnswer = presetTextAnswers[questionId].orEmpty(),
-                                    onOptionIndexChange = { optionIndex ->
-                                        radioIndexes = radioIndexes + (questionId to optionIndex)
-                                    },
-                                    onTextChange = { text ->
-                                        presetTextAnswers = presetTextAnswers + (questionId to text)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = presetQuestions.isNotEmpty(),
-                onClick = {
-                    viewModel.savePreset(
-                        radioOptionIndexes = radioIndexes,
-                        textAnswers = presetTextAnswers,
-                        anonymous = anonymous
-                    )
-                    onDismiss()
+            Text(
+                text = if (questionnaire.readOnly) {
+                    "该评教已提交，仅展示问卷内容。"
+                } else {
+                    "当前为只读预览；需要填写/提交请登录教务系统网页完成。"
                 },
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = 40.a1 withNight 80.a1,
-                    disabledContentColor = 60.n1 withNight 50.n1
-                )
-            ) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = 40.a1 withNight 80.a1
-                )
-            ) {
-                Text("取消")
-            }
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
         }
-    )
-}
 
-@Composable
-private fun PresetQuestionEditor(
-    question: EvalQuestion,
-    selectedOptionIndex: Int?,
-    textAnswer: String,
-    onOptionIndexChange: (Int) -> Unit,
-    onTextChange: (String) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = "${question.index}. ${question.attribute.name}",
-            color = 0.n1 withNight 100.n1,
-            fontWeight = FontWeight.Medium,
-            style = MaterialTheme.typography.bodyMedium
-        )
-
-        when (question.attribute.typeId) {
-            1 -> {
-                question.options.forEachIndexed { optionIndex, option ->
-                    val selected = selectedOptionIndex == optionIndex
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(SmoothRoundedCornerShape(10.dp))
-                            .background(
-                                if (selected) {
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                                } else {
-                                    Color.Transparent
-                                }
-                            )
-                            .clickable { onOptionIndexChange(optionIndex) }
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selected,
-                            onClick = { onOptionIndexChange(optionIndex) }
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = option.value,
-                            modifier = Modifier.weight(1f),
-                            color = 0.n1 withNight 100.n1,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        if (question.attribute.enableScore) {
-                            Text(
-                                text = "${option.optionScore}分",
-                                color = 50.n1 withNight 70.n1,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
-                }
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 8.dp,
+                bottom = 20.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            itemsIndexed(questionnaire.questions, key = { _, q -> q.questionKey }) { index, question ->
+                EvaluationQuestionCard(index = index, question = question)
             }
-            4 -> {
-                OutlinedTextField(
-                    value = textAnswer,
-                    onValueChange = onTextChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    maxLines = 5,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = 0.n1 withNight 100.n1,
-                        unfocusedTextColor = 0.n1 withNight 100.n1,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = 90.n1 withNight 30.n1,
-                        cursorColor = 90.a1 withNight 90.a1
-                    ),
-                    shape = SmoothRoundedCornerShape(12.dp)
-                )
-            }
-            else -> {
+            item {
                 Text(
-                    text = "暂不支持该题型",
-                    color = 50.n1 withNight 80.n1,
-                    style = MaterialTheme.typography.bodySmall
+                    text = "共 ${questionnaire.questions.size} 题，其中必答 ${questionnaire.requiredCount} 题。",
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -842,133 +353,144 @@ private fun PresetQuestionEditor(
 }
 
 @Composable
-private fun QuestionCard(
-    question: EvalQuestion,
-    selectedOptionId: String?,
-    textAnswer: String,
-    onSelect: (String) -> Unit,
-    onTextChange: (String) -> Unit
-) {
-    val attr = question.attribute
-
+private fun EvaluationQuestionCard(index: Int, question: ChaoxingEvaluationQuestion) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = 100.n1 withNight 20.n1
-        ),
-        shape = SmoothRoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(18.dp),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.Top) {
                 Text(
-                    text = "${question.index}.",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = attr.name,
+                    text = "${index + 1}. ${question.prompt}",
                     modifier = Modifier.weight(1f),
-                    color = 0.n1 withNight 100.n1,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
                 )
-                if (attr.required) {
-                    Text(text = "*", color = Color(0xFFE53935), fontSize = 14.sp)
+                if (question.required) {
+                    Text(
+                        text = "必答",
+                        modifier = Modifier
+                            .background(
+                                MaterialTheme.colorScheme.errorContainer,
+                                RoundedCornerShape(999.dp),
+                            )
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
                 }
             }
+            if (question.sectionTitle.isNotBlank()) {
+                Text(
+                    text = question.sectionTitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
-            when (attr.typeId) {
-                1 -> {
-                    question.options.forEach { option ->
-                        val optionId = option.optionId.toString()
-                        val selected = selectedOptionId == optionId
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(SmoothRoundedCornerShape(12.dp))
-                                .background(
-                                    if (selected) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                    } else {
-                                        Color.Transparent
-                                    }
-                                )
-                                .clickable { onSelect(optionId) }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = selected,
-                                    onClick = { onSelect(optionId) }
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = option.value,
-                                    color = 0.n1 withNight 100.n1,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                            if (attr.enableScore) {
-                                Text(
-                                    text = "${option.optionScore}分",
-                                    color = 50.n1 withNight 70.n1,
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                            }
+            when (question.type) {
+                "text" -> {
+                    val hint = buildString {
+                        append("意见")
+                        val min = question.minLength
+                        val max = question.maxLength
+                        if (min != null || max != null) {
+                            append("（")
+                            if (min != null) append("最少 $min 字")
+                            if (min != null && max != null) append("，")
+                            if (max != null) append("最多 $max 字")
+                            append("）")
                         }
                     }
-                }
-                4 -> {
-                    OutlinedTextField(
-                        value = textAnswer,
-                        onValueChange = onTextChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = {
-                            Text(
-                                text = "请输入评语",
-                                color = 50.n1 withNight 70.n1
+                    Text(
+                        text = hint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = question.currentAnswer.ifBlank { "（未填写）" },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(10.dp),
                             )
-                        },
-                        minLines = 3,
-                        maxLines = 5,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = 0.n1 withNight 100.n1,
-                            unfocusedTextColor = 0.n1 withNight 100.n1,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = 90.n1 withNight 30.n1,
-                            focusedPlaceholderColor = 50.n1 withNight 70.n1,
-                            unfocusedPlaceholderColor = 50.n1 withNight 70.n1,
-                            cursorColor = 90.a1 withNight 90.a1
-                        ),
-                        shape = SmoothRoundedCornerShape(12.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 else -> {
-                    Text(
-                        text = "暂不支持该题型",
-                        color = 50.n1 withNight 80.n1,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    val multiple = question.type == "multiple-choice"
+                    val selectedIds = question.currentAnswer
+                        .split(',', ';', '|')
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .toSet()
+                    question.options.forEach { option ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (multiple) {
+                                Checkbox(
+                                    checked = option.optionId in selectedIds,
+                                    onCheckedChange = null,
+                                    enabled = false,
+                                )
+                            } else {
+                                RadioButton(
+                                    selected = question.currentAnswer == option.optionId,
+                                    onClick = {},
+                                    enabled = false,
+                                )
+                            }
+                            Text(
+                                text = option.label,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+}
 
-            if (attr.enableScore) {
-                Text(
-                    text = "本题 ${attr.score} 分",
-                    color = 50.n1 withNight 70.n1,
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
+@Composable
+private fun CenterLoading() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun CenterError(message: String, onRetry: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = onRetry) { Text("重试") }
         }
     }
 }
