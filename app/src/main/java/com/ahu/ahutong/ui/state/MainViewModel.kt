@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.server.AhuTong
+import com.ahu.ahutong.data.server.GiteeUpdateApi
 import com.ahu.ahutong.data.server.ApkSegmentDownloadPolicy
 import com.ahu.ahutong.data.server.ApkUpdatePolicy
 import com.ahu.ahutong.data.server.model.ApkUpdateInfo
@@ -167,7 +168,7 @@ class MainViewModel : ViewModel() {
         cleanStaleApks(dir)
 
         // 2. 从云端获取最新版本信息
-        val info = runCatching { AhuTong.API.getApkUpdateInfo() }
+        val info = runCatching { GiteeUpdateApi.API.getApkUpdateInfo() }
             .onFailure { Log.w("ApkUpdate", "startup update check request failed", it) }
             .getOrNull() ?: return@withContext
         val update = ApkUpdatePolicy.validate(info, BuildConfig.VERSION_CODE).getOrElse {
@@ -2161,7 +2162,7 @@ class MainViewModel : ViewModel() {
                 val dir = appContext.getExternalFilesDir(null) ?: appContext.filesDir
                 cleanStaleApks(dir)
 
-                val info = AhuTong.API.getApkUpdateInfo()
+                val info = GiteeUpdateApi.API.getApkUpdateInfo()
                 val update = ApkUpdatePolicy.validate(info, BuildConfig.VERSION_CODE).getOrElse { error ->
                     return@launch finishManualUpdateCheck(
                         if (ApkUpdatePolicy.isNoUpdateFailure(error)) {

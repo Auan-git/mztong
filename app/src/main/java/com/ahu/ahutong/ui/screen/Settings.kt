@@ -56,6 +56,7 @@ import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.dao.PreferencesManager
 import com.ahu.ahutong.data.server.AhuTong
+import com.ahu.ahutong.data.server.GiteeUpdateApi
 import com.ahu.ahutong.notification.CourseReminderScheduler
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.sdk.RustSDK
@@ -99,7 +100,7 @@ fun Settings(
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             aboutViewModel.tipState.value = null
         }
-        runCatching { AhuTong.API.getApkUpdateInfo().changelog.orEmpty() }
+        runCatching { GiteeUpdateApi.API.getApkUpdateInfo().changelog.orEmpty() }
             .onSuccess { updateLog = it.ifBlank { "暂无更新说明" } }
             .onFailure { updateLog = "获取失败" }
     }

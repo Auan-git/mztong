@@ -1,0 +1,9 @@
+{
+  "update": true,
+  "force": false,
+  "versionCode": 33,
+  "versionName": "1.8.0",
+  "changelog": "1. 自动更新改用 Gitee（update.json + 发行版附件），启动自动检查并校验 SHA-256。\n2. 校园地图支持标准图/卫星图切换、下拉选点、长按添加本机标点。\n3. 修复 release 混淆导致课表/成绩/校历解析失败的问题。",
+  "url": "https://gitee.com/edge-of-the-abyss/ChinaCivil-Affairs-University-using/releases/download/v1.8.0/app-release.apk",
+  "sha256": "04ef8513d06ca0d103cd5fcf2a1c207628b84a69f0cd3e1c4ee2c8429fa717ad"
+}

@@ -2,6 +2,13 @@ package com.ahu.ahutong
 
 object Constants {
     const val UPDATE_LOG = """
+        民职通 1.8.0（自动更新 + 校园地图增强）
+
+        1. 自动更新改用 Gitee：仓库根目录 update.json 提供版本信息，APK 放在 Gitee 发行版附件；release 启动自动检查，设置页可手动检查，下载后校验 SHA-256 再安装。
+        2. 校园地图支持标准图/卫星图切换；「选择点位」下拉菜单按校区定位固定点位；地图长按可添加本机标点，点击标点可删除。
+        3. 校园固定点位扩充到 32 个（大兴 13、燕郊 19），数据位于 assets/campus_points.json，可用 tools/campus-points-editor.html 维护。
+        4. 修复 release 混淆导致课表/成绩/校历无法解析的问题（超星教务 Gson 模型保留规则）。
+
         民职通 1.6.1（修复 release 版课表无法加载）
 
         1. 修复 release 包混淆后超星教务接口的 JSON 模型字段被重命名/裁剪，导致课表、成绩、校历解析失败的问题。

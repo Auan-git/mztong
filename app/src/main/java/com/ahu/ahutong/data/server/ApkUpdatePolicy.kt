@@ -13,9 +13,17 @@ object ApkUpdatePolicy {
 
     private val sha256Regex = Regex("^[0-9a-fA-F]{64}$")
     private val baseDownloadUri = URI("${SchoolConfig.UPDATE_SERVER_BASE_URL}/")
+    /**
+     * 可信下载域名：原更新服务器 + Gitee（update.json 与 Release APK 由 Gitee 托管）。
+     * Gitee 附件下载可能重定向到 giteeusercontent.com / objects.gitee.com，一并放行。
+     */
     private val primaryDownloadHosts = setOf(
         SchoolConfig.UPDATE_SERVER_HOST,
-        "www.${SchoolConfig.UPDATE_SERVER_HOST}"
+        "www.${SchoolConfig.UPDATE_SERVER_HOST}",
+        "gitee.com",
+        "www.gitee.com",
+        "raw.giteeusercontent.com",
+        "objects.gitee.com",
     )
 
     data class ValidatedUpdate(
